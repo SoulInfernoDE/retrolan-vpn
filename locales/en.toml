@@ -1,0 +1,7 @@
+[meta]
+language_name = "English"
+language_code = "en-US"
+
+[status]
+connected = "Connected via {protocol} ({latency} ms)"
+routing_steam = "Steam Relay Network active (CGNAT bypassed)"

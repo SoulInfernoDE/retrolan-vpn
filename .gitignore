@@ -1,0 +1,21 @@
+# Rust & Cargo
+/target/
+**/*.rs.bk
+Cargo.lock
+
+# Node / Tauri Frontend
+node_modules/
+dist/
+*.log
+
+# OS & Editor
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
+.idea/
+
+# Environment & Keys
+.env
+*.pem
+*.key
