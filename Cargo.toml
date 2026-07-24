@@ -1,0 +1,30 @@
+[package]
+name = "retrolan-vpn"
+version = "0.1.0"
+edition = "2021"
+authors = ["SoulInfernoDE <SoulInfernoDE@users.noreply.github.com>", "RetroLAN Community"]
+description = "Zero-Config Layer 2/3 LAN & Steam Relay VPN Engine for Classic & Modern Gaming"
+license = "MIT"
+repository = "https://github.com/SoulInfernoDE/retrolan-vpn"
+
+[dependencies]
+# Async Runtime & Utilities
+tokio = { version = "1.38", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Configuration & Serialization
+serde = { version = "1.0", features = ["derive"] }
+toml = "0.8"
+
+# WireGuard Crypto & Routing Engine (User-Space)
+boringtun = "0.6"
+
+# Multi-Platform Virtual Network Interfaces
+[target.'cfg(target_os = "linux")'.dependencies]
+tun = "0.6"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+wintun = "0.4"
