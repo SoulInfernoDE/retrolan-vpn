@@ -1,14 +1,7 @@
 # =====================================================================
-# RetroLAN VPN - Community Game Database (Mod Interface)
+# RetroLAN Community Game Database (games.toml)
+# Optimized for AVX (x86-64-v3) & Kernel NTSYNC Support
 # =====================================================================
-
-[[games]]
-name = "Need for Speed II SE"
-process_names = ["nfs2se.exe"]
-protocol = "ipx"
-require_wsock32_hook = true
-recommended_proton = "Proton-GE"
-notes = "Requires IPX-to-UDP wrapping on UDP port 213."
 
 [[games]]
 name = "FlatOut 2"
@@ -16,5 +9,38 @@ steam_appid = 2990
 process_names = ["FlatOut2.exe"]
 protocol = "udp_broadcast"
 broadcast_port = 23756
+require_wsock32_hook = false
 force_bind_ip = true
-recommended_proton = "Proton-CachyOS"
+recommended_proton = "proton-cachyos-v3"
+notes = "Classic crash racing LAN favorite. Runs best on Proton-CachyOS v3 (AVX2/NTSYNC) or GE-Proton for ultra-low latency physics."
+
+[[games]]
+name = "Need for Speed II SE"
+steam_appid = 0
+process_names = ["nfs2se.exe"]
+protocol = "ipx"
+require_wsock32_hook = true
+force_bind_ip = false
+recommended_proton = "proton-cachyos-v3"
+notes = "Requires IPX-to-UDP wsock32.dll proxy shim. Highly recommended with NTSYNC kernel module enabled."
+
+[[games]]
+name = "Metal Fatigue"
+steam_appid = 1170060
+process_names = ["MetalFatigue.exe", "mfatigue.exe"]
+protocol = "ipx"
+require_wsock32_hook = true
+force_bind_ip = true
+recommended_proton = "proton-cachyos-v3"
+notes = "Legendary 3-layer sci-fi RTS (Nightdive re-release). Uses CachyOS v3 / GE-Proton to prevent synchronization stutter in huge 3-map battles."
+
+[[games]]
+name = "StarTopia"
+steam_appid = 243040
+process_names = ["startopia.exe", "StarTopia.exe"]
+protocol = "udp_broadcast"
+broadcast_port = 47624
+require_wsock32_hook = false
+force_bind_ip = true
+recommended_proton = "proton-cachyos-v3"
+notes = "Classic space station management sim. Uses DirectPlay/UDP broadcast discovery on port 47624. AVX/NTSYNC recommended."

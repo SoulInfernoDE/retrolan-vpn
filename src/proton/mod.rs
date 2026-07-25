@@ -1,11 +1,12 @@
 // =====================================================================
 // RetroLAN VPN - Linux Proton Compatibility Tool Manager
-// Scans Linux Steam directories for installed custom Proton builds
-// (GE-Proton, Proton-CachyOS) and fetches missing releases on demand.
+// Scans Linux Steam directories for installed custom Proton builds,
+// detects CPU AVX2 (x86-64-v3) & kernel NTSYNC support, and dynamically
+// chooses between Proton-CachyOS v3 and GE-Proton.
 // =====================================================================
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use anyhow::{Context, Result};
 use serde::Deserialize;
@@ -17,7 +18,7 @@ pub const GE_PROTON_GITHUB_API: &str = "https://api.github.com/repos/GloriousEgg
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct ProtonTool {
-    /// Directory folder name of the tool (e.g., "GE-Proton9-12").
+    /// Directory folder name of the tool (e.g., "GE-Proton9-12" or "proton-cachyos-v3").
     pub name: String,
     /// Absolute filesystem path to the compatibility tool installation directory.
     pub path: PathBuf,
@@ -43,11 +44,15 @@ pub struct ProtonManager {
     pub compatibility_dir: PathBuf,
     /// List of currently detected compatibility tools on the local system.
     pub installed_tools: Vec<ProtonTool>,
+    /// Flag indicating whether the local CPU supports AVX2 & FMA (x86-64-v3 architecture).
+    pub cpu_supports_avx2: bool,
+    /// Flag indicating whether the Linux kernel has the /dev/ntsync module loaded.
+    pub kernel_supports_ntsync: bool,
 }
 
 #[allow(dead_code)]
 impl ProtonManager {
-    /// Initializes the Proton Manager and locates the system's Steam compatibility directory.
+    /// Initializes the Proton Manager, scans local hardware features, and locates Steam folders.
     pub fn new() -> Result<Self> {
         tracing::info!("Initializing RetroLAN Linux Proton Compatibility Manager...");
         
@@ -59,9 +64,26 @@ impl ProtonManager {
             fs::create_dir_all(&compatibility_dir)?;
         }
 
+        // 1. Detect x86-64-v3 CPU capabilities (AVX2 + FMA)
+        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+        let cpu_supports_avx2 = std::is_x86_feature_detected!("avx2") && std::is_x86_feature_detected!("fma");
+        #[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+        let cpu_supports_avx2 = false;
+
+        // 2. Detect native Linux kernel NTSYNC support (/dev/ntsync)
+        let kernel_supports_ntsync = Path::new("/dev/ntsync").exists();
+
+        tracing::info!(
+            "🧠 Hardware Diagnostics -> AVX2 (x86-64-v3): {} | Kernel NTSYNC: {}",
+            if cpu_supports_avx2 { "✔ YES" } else { "❌ NO" },
+            if kernel_supports_ntsync { "✔ YES (/dev/ntsync active)" } else { "❌ NO (Fallback to esync/fsync)" }
+        );
+
         let mut manager = Self {
             compatibility_dir,
             installed_tools: Vec::new(),
+            cpu_supports_avx2,
+            kernel_supports_ntsync,
         };
 
         manager.scan_installed_tools()?;
@@ -95,7 +117,6 @@ impl ProtonManager {
             }
         }
 
-        // Default fallback to standard Unix home directory structure
         std::env::var("HOME").ok().map(|h| PathBuf::from(h).join(".steam/root/compatibilitytools.d"))
     }
 
@@ -125,21 +146,48 @@ impl ProtonManager {
         Ok(())
     }
 
-    /// Checks if a required Proton version is installed. If missing, automatically downloads it.
-    pub async fn ensure_proton_installed(&mut self, required_tool: &str) -> Result<PathBuf> {
-        if let Some(tool) = self.installed_tools.iter().find(|t| t.name.to_lowercase().contains(&required_tool.to_lowercase())) {
-            tracing::info!("✔ Recommended tool '{}' is already installed at {:?}", tool.name, tool.path);
+    /// Determines the optimal Proton build based on local CPU & kernel features,
+    /// checks if it is installed, and initiates automated downloads if necessary.
+    pub async fn ensure_optimal_proton(&mut self, recommended_tool: &str) -> Result<PathBuf> {
+        let mut target_tool = recommended_tool.to_string();
+
+        // Dynamic optimization: If the profile requests CachyOS v3 or AVX, verify hardware support!
+        if target_tool.to_lowercase().contains("cachyos") {
+            if self.cpu_supports_avx2 {
+                tracing::info!("🚀 AVX2 hardware detected! Prioritizing 'proton-cachyos-v3' for maximum performance.");
+                target_tool = "proton-cachyos-v3".to_string();
+            } else {
+                tracing::warn!("⚠️ CPU does not support AVX2/x86-64-v3. Downgrading recommendation to secondary fallback: 'GE-Proton'");
+                target_tool = "GE-Proton".to_string();
+            }
+        }
+
+        // 1. Check if the determined optimal tool is already present (fuzzy matching)
+        if let Some(tool) = self.installed_tools.iter().find(|t| t.name.to_lowercase().contains(&target_tool.to_lowercase())) {
+            tracing::info!("✔ Optimal tool '{}' is already installed at {:?}", tool.name, tool.path);
             return Ok(tool.path.clone());
         }
 
-        tracing::warn!("⚠️ Recommended Proton build '{}' is not installed!", required_tool);
+        // 2. Try falling back to ANY installed GE-Proton or CachyOS if exact match is missing
+        if let Some(fallback_tool) = self.installed_tools.iter().find(|t| {
+            t.name.to_lowercase().contains("ge-proton") || t.name.to_lowercase().contains("cachyos")
+        }) {
+            tracing::info!("💡 Target tool '{}' missing, but found suitable alternative: '{}'", target_tool, fallback_tool.name);
+            return Ok(fallback_tool.path.clone());
+        }
 
-        if required_tool.to_lowercase().contains("ge-proton") || required_tool.to_lowercase().contains("proton-ge") {
+        tracing::warn!("⚠️ No optimal Proton compatibility tool ('{}') found on system!", target_tool);
+
+        // 3. Initiate automatic GitHub download for GE-Proton as universal fallback
+        if target_tool.to_lowercase().contains("ge-proton") || target_tool.to_lowercase().contains("proton-ge") {
             tracing::info!("⬇️ Initiating automatic download for latest GE-Proton release...");
             return self.download_latest_ge_proton().await;
         }
 
-        anyhow::bail!("Automatic downloading for '{}' is not yet supported. Please install it manually via ProtonUp-Qt.", required_tool);
+        anyhow::bail!(
+            "Please install '{}' (or any GE-Proton release) via ProtonUp-Qt or your package manager.",
+            target_tool
+        );
     }
 
     /// Fetches the latest GE-Proton release from GitHub and extracts it into `compatibilitytools.d`.

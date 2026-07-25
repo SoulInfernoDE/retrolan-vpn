@@ -94,9 +94,20 @@ impl IpxWrapper {
         let bind_addr = SocketAddr::new(self.bind_ip.into(), IPX_OVER_UDP_PORT);
         tracing::info!("IPX Wrapper: Binding UDP tunneling listener on {}", bind_addr);
 
-        let udp_sock = UdpSocket::bind(bind_addr)
-            .await
-            .with_context(|| format!("Failed to bind IPX wrapper to UDP port {}", IPX_OVER_UDP_PORT))?;
+        // Try binding to privileged port 213; fallback to unprivileged dev port 21300 if running without sudo/root
+        let udp_sock = match UdpSocket::bind(bind_addr).await {
+            Ok(s) => s,
+            Err(err) => {
+                let fallback_addr = SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), 21300);
+                tracing::warn!(
+                    "⚠️ Could not bind privileged IPX port {} on {} ({}). Using unprivileged dev fallback: {}",
+                    IPX_OVER_UDP_PORT, self.bind_ip, err, fallback_addr
+                );
+                UdpSocket::bind(fallback_addr)
+                    .await
+                    .with_context(|| format!("Failed to bind IPX wrapper fallback to UDP port {}", fallback_addr.port()))?
+            }
+        };
         
         udp_sock.set_broadcast(true)
             .context("Failed to enable SO_BROADCAST on IPX wrapper socket")?;

@@ -61,10 +61,20 @@ impl BroadcastReflector {
         let bind_addr = SocketAddr::new(bind_ip.into(), port);
         tracing::info!("Reflector: Spawning asynchronous broadcast listener on {}", bind_addr);
 
-        // Bind UDP socket with broadcast capabilities enabled
-        let socket = UdpSocket::bind(bind_addr)
-            .await
-            .with_context(|| format!("Failed to bind broadcast reflector to port {}", port))?;
+        // Fallback to wildcard address 0.0.0.0 if the virtual IP is not yet assigned to an OS kernel interface
+        let socket = match UdpSocket::bind(bind_addr).await {
+            Ok(s) => s,
+            Err(err) => {
+                let fallback_addr = SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), port);
+                tracing::warn!(
+                    "⚠️ Could not bind reflector to {} ({}). Using wildcard dev address: {}",
+                    bind_addr, err, fallback_addr
+                );
+                UdpSocket::bind(fallback_addr)
+                    .await
+                    .with_context(|| format!("Failed to bind broadcast reflector fallback to port {}", port))?
+            }
+        };
         
         socket.set_broadcast(true)
             .context("Failed to enable SO_BROADCAST on reflector socket")?;
@@ -73,7 +83,6 @@ impl BroadcastReflector {
         let peers_ref = Arc::clone(&self.peers);
         let is_active_ref = Arc::clone(&self.is_active);
 
-        // Spawn a dedicated Tokio background task for this game port
         tokio::spawn(async move {
             let mut buffer = [0u8; 4096];
             
@@ -85,7 +94,6 @@ impl BroadcastReflector {
 
                 match socket.recv_from(&mut buffer).await {
                     Ok((bytes_read, source_addr)) => {
-                        // Prevent infinite loops by ignoring packets sent by ourselves
                         if source_addr.ip() == bind_ip {
                             continue;
                         }

@@ -23,7 +23,7 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
     tracing::info!("🚀 Starting RetroLAN-VPN Core Engine...");
 
-    // 1. Scan Linux system for Steam Proton compatibility tools
+    // 1. Scan Linux system for Steam Proton compatibility tools and hardware features
     let mut proton_manager = match ProtonManager::new() {
         Ok(manager) => {
             for tool in &manager.installed_tools {
@@ -66,10 +66,11 @@ async fn main() -> anyhow::Result<()> {
         if let Some(flatout_profile) = db.find_by_process("FlatOut2.exe") {
             vpn_engine.apply_game_profile(flatout_profile, Path::new(".")).await?;
             
+            // If the game recommends a specific Proton version, verify hardware optimization
             if let Some(ref recommended) = flatout_profile.recommended_proton {
                 if let Some(ref mut pm) = proton_manager {
-                    tracing::info!("Checking if required tool '{}' is present on system...", recommended);
-                    let _ = pm.ensure_proton_installed(recommended).await;
+                    tracing::info!("Checking hardware-optimal Proton tool for '{}'...", recommended);
+                    let _ = pm.ensure_optimal_proton(recommended).await;
                 }
             }
         }
