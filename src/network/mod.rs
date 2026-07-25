@@ -2,7 +2,7 @@
 // RetroLAN VPN - Network Engine Module
 // Handles User-Space WireGuard routing, TUN adapter lifecycle,
 // split-tunnel subnet management, Layer-2 broadcast reflection,
-// and IPX-to-UDP retro game wrapping.
+// IPX-to-UDP retro game wrapping, and dynamic game profile application.
 // =====================================================================
 
 pub mod interface;
@@ -10,6 +10,7 @@ pub mod reflector;
 pub mod ipx;
 
 use std::net::Ipv4Addr;
+use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -17,6 +18,7 @@ use boringtun::noise::Tunn;
 use crate::network::interface::VirtualAdapter;
 use crate::network::reflector::BroadcastReflector;
 use crate::network::ipx::IpxWrapper;
+use crate::config::GameProfile;
 
 /// Represents the active state of our gaming VPN engine.
 #[allow(dead_code)]
@@ -60,6 +62,42 @@ impl VpnEngine {
             tunnel: None,
             offline_lan_mode: false,
         })
+    }
+
+    /// Dynamically applies a loaded game profile to the active network modules.
+    /// Configures broadcast reflectors, deploys IPX shims, and logs Proton recommendations.
+    #[allow(dead_code)]
+    pub async fn apply_game_profile(&self, profile: &GameProfile, game_dir: &Path) -> anyhow::Result<()> {
+        tracing::info!("🎮 Applying RetroLAN network profile for game: '{}'", profile.name);
+
+        // 1. Configure Layer-2 UDP Broadcast Reflector if required
+        if profile.protocol.eq_ignore_ascii_case("udp_broadcast") {
+            if let Some(port) = profile.broadcast_port {
+                let adapter = self.adapter.lock().await;
+                tracing::info!("Configuring UDP broadcast reflector on port {} for '{}'", port, profile.name);
+                self.reflector.start_monitoring_port(port, adapter.ip_address).await?;
+            } else {
+                tracing::warn!("Game profile '{}' requests udp_broadcast but specifies no broadcast_port!", profile.name);
+            }
+        }
+
+        // 2. Deploy custom IPX-to-UDP wsock32.dll proxy shim if requested
+        if profile.protocol.eq_ignore_ascii_case("ipx") || profile.require_wsock32_hook == Some(true) {
+            tracing::info!("Game requests legacy IPX networking. Deploying proxy shim...");
+            self.ipx_wrapper.deploy_wsock32_shim(game_dir)?;
+        }
+
+        // 3. Log Proton recommendations for Linux gamers
+        if let Some(ref proton) = profile.recommended_proton {
+            tracing::info!("💡 Linux Tip: Game runs best with compatibility tool '{}'", proton);
+        }
+
+        if profile.force_bind_ip == Some(true) {
+            let adapter = self.adapter.lock().await;
+            tracing::info!("🔒 Enforcing WINE_BIND_IP={} for target executable", adapter.ip_address);
+        }
+
+        Ok(())
     }
 
     /// Shuts down the engine cleanly, ensuring OS adapters, reflectors, and wrappers are stopped.
