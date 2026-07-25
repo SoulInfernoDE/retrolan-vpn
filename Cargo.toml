@@ -29,6 +29,9 @@ steamworks = "0.13"
 reqwest = { version = "0.13", features = ["json", "stream"] }
 dirs = "6.0"
 
+# Pure-Rust Multicast DNS (mDNS) Discovery Engine (Latest v0.20+)
+mdns-sd = "0.20"
+
 # Multi-Platform Virtual Network Interfaces
 [target.'cfg(target_os = "linux")'.dependencies]
 tun = "0.6"
