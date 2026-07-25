@@ -1,14 +1,16 @@
 // =====================================================================
 // RetroLAN VPN - Main Application Entry Point
 // Combines User-Space WireGuard routing, Layer-2 broadcast reflection,
-// IPX wrapping, TOML configuration, and Steamworks signaling.
+// IPX wrapping, TOML configuration, Steamworks signaling, and Proton control.
 // =====================================================================
 
 mod config;
 mod network;
+mod proton;
 mod steam;
 
 use network::VpnEngine;
+use proton::ProtonManager;
 use steam::{SteamEngine, RETROLAN_DEV_APP_ID};
 use std::path::Path;
 
@@ -18,7 +20,21 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
     tracing::info!("🚀 Starting RetroLAN-VPN Core Engine...");
 
-    // 1. Attempt to initialize Steamworks SDK signaling (graceful offline fallback)
+    // 1. Scan Linux system for Steam Proton compatibility tools
+    let mut proton_manager = match ProtonManager::new() {
+        Ok(manager) => {
+            for tool in &manager.installed_tools {
+                tracing::info!("  -> Found Proton Flavor: {}", tool.name);
+            }
+            Some(manager)
+        }
+        Err(err) => {
+            tracing::debug!("Proton manager disabled or not running on standard Linux path: {}", err);
+            None
+        }
+    };
+
+    // 2. Attempt to initialize Steamworks SDK signaling (graceful offline fallback)
     let steam_engine = match SteamEngine::init(RETROLAN_DEV_APP_ID)? {
         Some(engine) => {
             tracing::info!("🌐 Operating in Steam Online Mode (Relay & Lobby Signaling available).");
@@ -30,17 +46,25 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    // 2. Initialize our virtual gaming adapter on IP 10.133.7.1
+    // 3. Initialize our virtual gaming adapter on IP 10.133.7.1
     let mut vpn_engine = VpnEngine::new("retrolan0", "10.133.7.1").await?;
 
-    // 3. Test: Load community game database and simulate applying a profile
+    // 4. Test: Load community game database and check game requirements
     if let Ok(db) = config::GameDatabase::load_from_file(Path::new("games.toml")) {
         if let Some(flatout_profile) = db.find_by_process("FlatOut2.exe") {
             vpn_engine.apply_game_profile(flatout_profile, Path::new(".")).await?;
+            
+            // If the game recommends a specific Proton version, verify it with our manager
+            if let Some(ref recommended) = flatout_profile.recommended_proton {
+                if let Some(ref mut pm) = proton_manager {
+                    tracing::info!("Checking if required tool '{}' is present on system...", recommended);
+                    let _ = pm.ensure_proton_installed(recommended).await;
+                }
+            }
         }
     }
 
-    // 4. Test: If Steam is active, simulate creating a signaling lobby
+    // 5. Test: If Steam is active, simulate creating a signaling lobby
     if let Some(ref steam) = steam_engine {
         if let Ok(_lobby_id) = steam.create_signaling_lobby(8).await {
             steam.broadcast_wireguard_handshake("4x/example+wg+pubkey=", "10.133.7.1").await?;

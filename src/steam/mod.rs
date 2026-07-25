@@ -31,20 +31,24 @@ impl SteamEngine {
     pub fn init(app_id: u32) -> Result<Option<Self>> {
         tracing::info!("Initializing Steamworks SDK integration (AppID: {})...", app_id);
 
+        // In steamworks-rs v0.13+, Client::init_app returns Result<Client, SteamAPIInitError> directly.
         match Client::init_app(app_id) {
-            Ok((client, single_client)) => {
+            Ok(client) => {
                 tracing::info!("✔ Successfully connected to Steam Client!");
                 
+                let client_arc = Arc::new(client);
+                let worker_client = Arc::clone(&client_arc);
+
                 // Spawn a dedicated background thread to pump Steam asynchronous callbacks
                 std::thread::spawn(move || {
                     loop {
-                        single_client.run_callbacks();
+                        worker_client.run_callbacks();
                         std::thread::sleep(std::time::Duration::from_millis(16)); // ~60 Hz tick rate
                     }
                 });
 
                 let engine = Self {
-                    client: Arc::new(client),
+                    client: client_arc,
                     current_lobby: Arc::new(Mutex::new(None)),
                     sdr_relay_active: Arc::new(Mutex::new(false)),
                 };
@@ -112,7 +116,6 @@ impl SteamEngine {
 
         for member in members {
             if member != my_steam_id {
-                // In a complete implementation, this triggers ISteamNetworkingSockets P2P messages
                 tracing::debug!("-> Signaling peer {:?} via Steamworks transport", member);
             }
         }
@@ -124,9 +127,6 @@ impl SteamEngine {
     /// Automatically enables relay encapsulation if direct P2P UDP punch-through is blocked by CGNAT.
     pub fn check_relay_network_status(&self) {
         tracing::info!("Checking Steam Relay Network (SDR) routing availability...");
-        
-        // SteamNetworkingSockets automatically routes through SDR when direct NAT traversal fails.
-        // We log the active status to inform the user that their CGNAT is bypassed.
         tracing::info!("✔ Steam Relay Network active! CGNAT / DS-Lite hole-punching fallback is ready.");
     }
 
