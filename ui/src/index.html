@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="de" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RetroLAN-VPN Dashboard</title>
+  <link rel="stylesheet" href="./src/style.css" />
+</head>
+<body class="bg-retrodark text-slate-200 font-sans min-h-screen p-6 selection:bg-retrocyan selection:text-retrodark">
+  
+  <!-- Header -->
+  <header class="flex justify-between items-center pb-6 border-b border-slate-800 mb-6">
+    <div class="flex items-center space-x-3">
+      <div class="w-4 h-4 rounded-full bg-retrogreen animate-pulse"></div>
+      <h1 class="text-2xl font-bold tracking-wider text-white">
+        RETRO<span class="text-retrocyan">LAN</span>-VPN
+      </h1>
+      <span class="text-xs font-mono bg-slate-800 text-slate-400 px-2 py-1 rounded">v0.1.0-PRO</span>
+    </div>
+    <div class="text-xs font-mono text-slate-400" id="clock">00:00:00</div>
+  </header>
+
+  <!-- Status Cards Grid -->
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+    <div class="bg-retrocard p-4 rounded-lg border border-slate-700/50 shadow-lg">
+      <span class="text-xs font-mono text-slate-400 block mb-1">CPU ARCHITECTURE</span>
+      <span class="text-lg font-bold text-white flex items-center" id="status-avx">
+        <span class="inline-block w-2 h-2 rounded-full bg-yellow-500 mr-2"></span> Checking...
+      </span>
+    </div>
+    <div class="bg-retrocard p-4 rounded-lg border border-slate-700/50 shadow-lg">
+      <span class="text-xs font-mono text-slate-400 block mb-1">KERNEL NTSYNC DRIVER</span>
+      <span class="text-lg font-bold text-white flex items-center" id="status-ntsync">
+        <span class="inline-block w-2 h-2 rounded-full bg-yellow-500 mr-2"></span> Checking...
+      </span>
+    </div>
+    <div class="bg-retrocard p-4 rounded-lg border border-slate-700/50 shadow-lg">
+      <span class="text-xs font-mono text-slate-400 block mb-1">STEAMWORKS SDR RELAY</span>
+      <span class="text-lg font-bold text-white flex items-center" id="status-steam">
+        <span class="inline-block w-2 h-2 rounded-full bg-yellow-500 mr-2"></span> Checking...
+      </span>
+    </div>
+  </div>
+
+  <!-- Game Selector & Actions -->
+  <main class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    
+    <!-- Left Column: Game Profiles -->
+    <div class="lg:col-span-2 bg-retrocard p-6 rounded-lg border border-slate-700/50 shadow-xl">
+      <h2 class="text-lg font-bold text-white mb-4 flex items-center">
+        <span>🎮 Community Game Database</span>
+        <span class="ml-auto text-xs font-mono bg-slate-800 text-retrocyan px-2 py-1 rounded" id="game-count">0 Titels</span>
+      </h2>
+      <div class="space-y-3" id="game-list">
+        <div class="text-sm text-slate-500 italic">Lade Spiele aus games.toml...</div>
+      </div>
+    </div>
+
+    <!-- Right Column: Control Panel -->
+    <div class="bg-retrocard p-6 rounded-lg border border-slate-700/50 shadow-xl flex flex-col justify-between">
+      <div>
+        <h2 class="text-lg font-bold text-white mb-4">🚀 Tunnel Steuerung</h2>
+        <p class="text-sm text-slate-400 mb-6 leading-relaxed">
+          Wähle ein Spiel aus der Datenbank und starte entweder eine weltweite P2P/Relay-Lobby über Steam oder entdecke Freunde im physischen Keller-LAN per mDNS.
+        </p>
+
+        <div class="space-y-3">
+          <button id="btn-host" class="w-full bg-retrocyan hover:bg-cyan-400 text-retrodark font-bold py-3 px-4 rounded transition shadow-lg shadow-cyan-500/20 flex items-center justify-center space-x-2">
+            <span>🌐 Steam SDR Lobby Hosten</span>
+          </button>
+          <button id="btn-offline" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 px-4 rounded transition flex items-center justify-center space-x-2 border border-slate-600">
+            <span>🔌 Offline-LAN Beitreten (mDNS)</span>
+          </button>
+          <button id="btn-ipx" class="w-full bg-slate-800 hover:bg-slate-700 text-retrogreen font-mono text-sm py-2 px-4 rounded transition border border-slate-700">
+            ⚙️ wsock32.dll Shim Neu Laden
+          </button>
+        </div>
+      </div>
+
+      <!-- Terminal Output Log -->
+      <div class="mt-6 pt-6 border-t border-slate-800">
+        <span class="text-xs font-mono text-slate-400 block mb-2">LIVE SYSTEM LOG</span>
+        <div class="bg-retrodark p-3 rounded font-mono text-xs text-slate-300 h-32 overflow-y-auto space-y-1" id="log-box">
+          <div class="text-slate-500">[SYS] RetroLAN-VPN UI initialisiert...</div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <script type="module" src="./src/main.ts"></script>
+</body>
+</html>
