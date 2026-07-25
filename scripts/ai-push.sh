@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =====================================================================
-# RetroLAN AI Auto-Push Tool (Gemini 3.1 Pro Thinking - Bulletproof V3)
+# RetroLAN AI Auto-Push Tool (Gemini Pro Latest - Bulletproof V3)
 # =====================================================================
 set -e
 
@@ -15,7 +15,7 @@ if [ -z "$GEMINI_API_KEY" ]; then
   exit 1
 fi
 
-echo "🧠 Inspecting changes with Gemini 3.1 Pro (Thinking Engine)..."
+echo "🧠 Inspecting changes with Gemini Pro Latest..."
 DIFF_CONTENT=$(git diff HEAD)
 
 # 1. JSON-Payload sicher mit jq generieren (maskiert automatisch alle Sonderzeichen & Newlines im Diff!)
@@ -27,7 +27,7 @@ JSON_PAYLOAD=$(jq -n --arg diff "$DIFF_CONTENT" '{
   }]
 }')
 
-# 2. API-Aufruf mit sicherem Payload
+# 2. API-Aufruf mit dem gemini-pro-latest Endpunkt
 API_RESPONSE=$(curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-latest:generateContent?key=${GEMINI_API_KEY}" \
   -H 'Content-Type: application/json' \
   -d "$JSON_PAYLOAD")
