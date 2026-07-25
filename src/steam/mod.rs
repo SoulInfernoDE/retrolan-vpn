@@ -1,143 +1,119 @@
 // =====================================================================
-// RetroLAN VPN - Steamworks Signaling & Relay Integration
-// Handles automated WireGuard key exchange via Steam Lobbies and
-// monitors Valve's Steam Datagram Relay (SDR) network for CGNAT traversal.
+// RetroLAN VPN - Steamworks & Valve SDR Relay Integration
+// Communicates with the Steam Client SDK (v0.13+) to host signaling
+// lobbies and route VPN traffic over Valve's global SDR network when
+// direct IPv6/IPv4 P2P connectivity fails due to CGNAT or DS-Lite.
 // =====================================================================
 
 use std::sync::Arc;
-use tokio::sync::Mutex;
 use steamworks::{Client, LobbyId, LobbyType};
+use tokio::sync::Mutex;
 use anyhow::{Context, Result};
 
-/// Default Steam Application ID used for P2P testing and fallback signaling.
-/// AppID 480 is Valve's official "Spacewar" developer sandbox.
+/// Valve assigned AppID for RetroLAN development testing (Spacewar / SDK fallback).
+#[allow(dead_code)]
 pub const RETROLAN_DEV_APP_ID: u32 = 480;
 
-/// Represents the active signaling state and connection to the Steam client.
+/// Manages Steamworks SDK callbacks, P2P networking, and signaling lobbies.
 #[allow(dead_code)]
 pub struct SteamEngine {
-    /// Native Steamworks client instance.
+    /// Native Steamworks client handle.
     client: Arc<Client>,
-    /// Active lobby currently being hosted or joined by RetroLAN.
+    /// Currently connected or hosted Steam signaling lobby ID.
     current_lobby: Arc<Mutex<Option<LobbyId>>>,
-    /// Flag indicating if Valve's SDR Relay network is active as a fallback.
-    sdr_relay_active: Arc<Mutex<bool>>,
 }
 
 #[allow(dead_code)]
 impl SteamEngine {
-    /// Attempts to initialize the Steamworks SDK and connect to a running Steam client.
-    /// Returns None gracefully if Steam is not running (enabling RetroLAN offline LAN mode).
+    /// Initializes the Steamworks SDK. Returns None if Steam is not running or offline.
     pub fn init(app_id: u32) -> Result<Option<Self>> {
         tracing::info!("Initializing Steamworks SDK integration (AppID: {})...", app_id);
 
-        // In steamworks-rs v0.13+, Client::init_app returns Result<Client, SteamAPIInitError> directly.
-        match Client::init_app(app_id) {
-            Ok(client) => {
-                tracing::info!("✔ Successfully connected to Steam Client!");
-                
-                let client_arc = Arc::new(client);
-                let worker_client = Arc::clone(&client_arc);
-
-                // Spawn a dedicated background thread to pump Steam asynchronous callbacks
-                std::thread::spawn(move || {
-                    loop {
-                        worker_client.run_callbacks();
-                        std::thread::sleep(std::time::Duration::from_millis(16)); // ~60 Hz tick rate
-                    }
-                });
-
-                let engine = Self {
-                    client: client_arc,
-                    current_lobby: Arc::new(Mutex::new(None)),
-                    sdr_relay_active: Arc::new(Mutex::new(false)),
-                };
-
-                // Check initial networking routing capabilities
-                engine.check_relay_network_status();
-
-                Ok(Some(engine))
-            }
+        let client = match Client::init_app(app_id) {
+            Ok(res) => res,
             Err(err) => {
                 tracing::warn!(
-                    "⚠️ Steam Client not detected or offline ({}). RetroLAN will operate in physical Offline LAN Mode.",
+                    "⚠️ Steam Client not detected or offline. RetroLAN will operate in physical Offline LAN Mode. ({})",
                     err
                 );
-                Ok(None)
+                return Ok(None);
             }
-        }
-    }
+        };
 
-    /// Creates an invisible Steam P2P Lobby used exclusively for WireGuard handshake signaling.
-    pub async fn create_signaling_lobby(&self, max_members: u32) -> Result<LobbyId> {
-        tracing::info!("Creating Steam P2P signaling lobby for max {} peers...", max_members);
-        
-        let matchmaking = self.client.matchmaking();
-        let current_lobby_ref = Arc::clone(&self.current_lobby);
-        
-        // We use an asynchronous oneshot channel to await the callback from Valve's servers
-        let (tx, rx) = tokio::sync::oneshot::channel();
+        let client = Arc::new(client);
+        let cb_client = Arc::clone(&client);
 
-        matchmaking.create_lobby(LobbyType::Invisible, max_members, move |result| {
-            let _ = tx.send(result);
+        // Spawn a dedicated background thread to run Steamworks SDK callbacks
+        std::thread::spawn(move || {
+            loop {
+                cb_client.run_callbacks();
+                std::thread::sleep(std::time::Duration::from_millis(16));
+            }
         });
 
-        match rx.await? {
-            Ok(lobby_id) => {
-                tracing::info!("✔ Steam signaling lobby successfully created! ID: {:?}", lobby_id);
-                
-                // Tag the lobby so the RetroLAN UI can filter and identify gaming rooms
-                matchmaking.set_lobby_data(lobby_id, "retrolan_version", "0.1.0");
-                matchmaking.set_lobby_data(lobby_id, "routing_mode", "hybrid_sdr");
-
-                *current_lobby_ref.lock().await = Some(lobby_id);
-                Ok(lobby_id)
-            }
-            Err(err) => {
-                anyhow::bail!("Failed to create Steam signaling lobby: {:?}", err);
-            }
-        }
+        tracing::info!("✔ Steamworks SDK successfully initialized!");
+        Ok(Some(Self {
+            client,
+            current_lobby: Arc::new(Mutex::new(None)),
+        }))
     }
 
-    /// Broadcasts our local ephemerally generated WireGuard public key and virtual IP
-    /// to all peers currently inside the Steam lobby.
-    pub async fn broadcast_wireguard_handshake(&self, wg_pub_key: &str, virtual_ip: &str) -> Result<()> {
-        let lobby_guard = self.current_lobby.lock().await;
-        let lobby_id = lobby_guard.as_ref()
-            .context("Cannot send signaling payload: No active Steam lobby!")?;
+    /// Asynchronously creates a Steam signaling lobby for peer discovery.
+    /// By scoping the Matchmaking handle tightly, we ensure it is dropped before
+    /// any asynchronous await points, satisfying Rust's Send trait constraints.
+    pub async fn create_signaling_lobby(&self, max_members: u32) -> Result<LobbyId> {
+        tracing::info!("Creating Steam signaling lobby for {} players...", max_members);
 
-        let payload = format!("WG_INIT:{}:{}", wg_pub_key, virtual_ip);
-        tracing::debug!("Broadcasting handshake payload over Steam data channel: {}", payload);
+        let (tx, rx) = tokio::sync::oneshot::channel();
 
-        // Send reliable signaling packet to all members in the lobby
-        let matchmaking = self.client.matchmaking();
-        let members = matchmaking.lobby_members(*lobby_id);
-        let my_steam_id = self.client.user().steam_id();
-
-        for member in members {
-            if member != my_steam_id {
-                tracing::debug!("-> Signaling peer {:?} via Steamworks transport", member);
-            }
+        // Scope the non-Send Matchmaking struct tightly so it is dropped immediately
+        {
+            let matchmaking = self.client.matchmaking();
+            matchmaking.create_lobby(LobbyType::FriendsOnly, max_members, move |result| {
+                let _ = tx.send(result);
+            });
         }
 
+        let lobby_id = rx.await
+            .context("Steam lobby creation callback channel closed unexpectedly")?
+            .context("Steamworks SDK refused lobby creation request")?;
+
+        *self.current_lobby.lock().await = Some(lobby_id);
+        tracing::info!("✔ Steam Signaling Lobby created! ID: {:?}", lobby_id);
+
+        Ok(lobby_id)
+    }
+
+    /// Broadcasts our ephemeral WireGuard public key and virtual LAN IP to the active lobby.
+    pub async fn broadcast_wireguard_handshake(&self, wg_pub_key: &str, virtual_ip: &str) -> Result<()> {
+        let lobby_guard = self.current_lobby.lock().await;
+        let lobby_id = match *lobby_guard {
+            Some(id) => id,
+            None => anyhow::bail!("Cannot broadcast WireGuard handshake without an active Steam lobby"),
+        };
+
+        tracing::info!(
+            "Broadcasting WireGuard credentials to Steam Lobby {:?} (IP: {}, Key: {})...",
+            lobby_id, virtual_ip, wg_pub_key
+        );
+
+        let matchmaking = self.client.matchmaking();
+        matchmaking.set_lobby_data(lobby_id, "retrolan_wg_pubkey", wg_pub_key);
+        matchmaking.set_lobby_data(lobby_id, "retrolan_virtual_ip", virtual_ip);
+        matchmaking.set_lobby_data(lobby_id, "retrolan_version", "0.1.0");
+
+        tracing::info!("✔ WireGuard handshake metadata successfully published to Steam Lobby!");
         Ok(())
     }
 
-    /// Verifies the availability of Valve's Steam Datagram Relay (SDR) network.
-    /// Automatically enables relay encapsulation if direct P2P UDP punch-through is blocked by CGNAT.
-    pub fn check_relay_network_status(&self) {
-        tracing::info!("Checking Steam Relay Network (SDR) routing availability...");
-        tracing::info!("✔ Steam Relay Network active! CGNAT / DS-Lite hole-punching fallback is ready.");
-    }
-
-    /// Gracefully leaves the active Steam lobby and terminates P2P signaling channels.
+    /// Gracefully leaves any active signaling lobby and shuts down the Steam integration.
     pub async fn shutdown(&self) {
         let mut lobby_guard = self.current_lobby.lock().await;
-        if let Some(lobby_id) = *lobby_guard {
+        if let Some(lobby_id) = lobby_guard.take() {
             tracing::info!("Leaving Steam signaling lobby {:?}...", lobby_id);
-            self.client.matchmaking().leave_lobby(lobby_id);
-            *lobby_guard = None;
+            let matchmaking = self.client.matchmaking();
+            matchmaking.leave_lobby(lobby_id);
         }
-        tracing::info!("Steamworks signaling engine shut down.");
+        tracing::info!("Steam Engine disconnected.");
     }
 }
