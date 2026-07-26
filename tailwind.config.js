@@ -1,13 +1,10 @@
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
-    "./ui/**/*.html",
-    "./ui/**/*.ts",
-    "./src/**/*.html",
-    "./src/**/*.ts",
-    "*.html",
-    "**/*.html",
-    "**/*.ts"
+    "./index.html",
+    "./src/**/*.{html,ts}",
+    "./ui/index.html",
+    "./ui/src/**/*.{html,ts}"
   ],
   darkMode: 'class',
   theme: {
