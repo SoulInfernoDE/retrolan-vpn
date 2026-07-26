@@ -8,19 +8,17 @@
 </head>
 <body class="bg-retrodark text-slate-200 font-sans min-h-screen p-6 selection:bg-retrocyan selection:text-retrodark">
   
-  <!-- Header -->
   <header class="flex justify-between items-center pb-6 border-b border-slate-800 mb-6">
     <div class="flex items-center space-x-3">
       <div class="w-4 h-4 rounded-full bg-retrogreen animate-pulse"></div>
       <h1 class="text-2xl font-bold tracking-wider text-white">
         RETRO<span class="text-retrocyan">LAN</span>-VPN
       </h1>
-      <span class="text-xs font-mono bg-slate-800 text-slate-400 px-2 py-1 rounded">v0.1.0-PRO</span>
+      <span class="text-xs font-mono bg-slate-800 text-slate-400 px-2 py-1 rounded">v0.1.0-AUTO</span>
     </div>
     <div class="text-xs font-mono text-slate-400" id="clock">00:00:00</div>
   </header>
 
-  <!-- Status Cards Grid -->
   <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
     <div class="bg-retrocard p-4 rounded-lg border border-slate-700/50 shadow-lg">
       <span class="text-xs font-mono text-slate-400 block mb-1">CPU ARCHITECTURE</span>
@@ -42,10 +40,7 @@
     </div>
   </div>
 
-  <!-- Pulsing WireGuard Telemetry & Crypt-Monitor Widget -->
   <div class="bg-retrocard p-5 rounded-lg border border-slate-700/80 shadow-xl mb-8 relative overflow-hidden">
-    <div class="absolute -right-10 -top-10 w-40 h-40 bg-retrocyan/5 rounded-full blur-2xl pointer-events-none"></div>
-    
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 pb-4 border-b border-slate-800">
       <div class="flex items-center space-x-3">
         <div class="relative flex h-3 w-3">
@@ -54,9 +49,9 @@
         </div>
         <div>
           <h2 class="text-md font-bold text-white uppercase tracking-wider flex items-center space-x-2">
-            <span>⚡ Live WireGuard Telemetry & Crypt-Monitor</span>
+            <span>⚡ Live WireGuard Telemetry & Auto-Pilot</span>
           </h2>
-          <div class="text-xs font-mono text-slate-400 mt-0.5" id="telemetry-status">WARTE AUF TUNNEL / LOBBY...</div>
+          <div class="text-xs font-mono text-slate-400 mt-0.5" id="telemetry-status">AUTO-PILOT BEREIT</div>
         </div>
       </div>
       <div class="flex items-center space-x-3 font-mono text-xs flex-wrap gap-y-2">
@@ -67,17 +62,16 @@
           <span class="text-slate-400">VOLUMEN:</span> <span class="text-retrocyan font-bold" id="telemetry-total">0.00 MB / 0.00 MB</span>
         </div>
         <div class="bg-slate-800 px-3 py-1.5 rounded border border-yellow-500/40">
-          <span class="text-slate-400">PATH MTU:</span> <span class="text-yellow-400 font-bold" id="telemetry-mtu">1500 B</span>
+          <span class="text-slate-400">PATH MTU:</span> <span class="text-yellow-400 font-bold" id="telemetry-mtu">1420 B</span>
         </div>
       </div>
     </div>
 
-    <!-- Throughput Bars Grid -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div class="bg-retrodark p-3 rounded border border-slate-800">
         <div class="flex justify-between items-center mb-1.5 font-mono text-xs">
           <span class="text-slate-400 flex items-center">
-            <span class="text-retrocyan mr-1.5 font-bold">▲</span> TX (OUTGOING SPX/UDP SHIM)
+            <span class="text-retrocyan mr-1.5 font-bold">▲</span> TX (SPX/UDP TUNNEL)
           </span>
           <span class="text-retrocyan font-bold text-sm" id="telemetry-tx-val">0.0 KB/s</span>
         </div>
@@ -88,7 +82,7 @@
       <div class="bg-retrodark p-3 rounded border border-slate-800">
         <div class="flex justify-between items-center mb-1.5 font-mono text-xs">
           <span class="text-slate-400 flex items-center">
-            <span class="text-retrogreen mr-1.5 font-bold">▼</span> RX (INCOMING TUNNEL TRAFFIC)
+            <span class="text-retrogreen mr-1.5 font-bold">▼</span> RX (INCOMING TRAFFIC)
           </span>
           <span class="text-retrogreen font-bold text-sm" id="telemetry-rx-val">0.0 KB/s</span>
         </div>
@@ -99,109 +93,78 @@
     </div>
   </div>
 
-  <!-- Game Selector & Actions Grid -->
   <main class="grid grid-cols-1 lg:grid-cols-3 gap-6">
     
-    <!-- Left Column: Game Profiles, LAN Matches, Friends & Chat -->
     <div class="lg:col-span-2 space-y-6">
       
-      <!-- Community Game Database -->
       <div class="bg-retrocard p-6 rounded-lg border border-slate-700/50 shadow-xl">
         <h2 class="text-lg font-bold text-white mb-4 flex items-center">
-          <span>🎮 Community Game Database</span>
+          <span>🎮 Spieleauswahl (Auto-Pilot Setup)</span>
           <span class="ml-auto text-xs font-mono bg-slate-800 text-retrocyan px-2 py-1 rounded" id="game-count">0 Titel</span>
         </h2>
-        <div class="space-y-3 max-h-52 overflow-y-auto pr-2" id="game-list">
-          <div class="text-sm text-slate-500 italic">Lade Spiele aus games.toml...</div>
+        <div class="space-y-3 max-h-56 overflow-y-auto pr-2" id="game-list">
+          <div class="text-sm text-slate-500 italic">Lade Spiele...</div>
         </div>
       </div>
 
-      <!-- Live Game Sessions / LAN Match Detector -->
       <div class="bg-retrocard p-6 rounded-lg border border-slate-700/50 shadow-xl">
         <h2 class="text-lg font-bold text-white mb-4 flex items-center">
-          <span>🎮 Aktive LAN-Spiele im Tunnel (Broadcast Detector)</span>
+          <span>🎮 Entdeckte LAN-Spiele im Tunnel</span>
           <span class="ml-auto text-xs font-mono bg-slate-800 text-yellow-400 px-2 py-1 rounded" id="session-count">0 Server</span>
         </h2>
         <div class="space-y-3" id="session-list">
           <div class="col-span-full p-4 rounded bg-slate-800/40 border border-dashed border-slate-700 text-center text-sm text-slate-500">
-            Keine gehosteten LAN-Spiele entdeckt. Starte ein Spiel und eröffne einen Server!
+            Wähle oben ein Spiel aus – gehostete LAN-Spiele deiner Freunde erscheinen hier automatisch!
           </div>
         </div>
       </div>
 
-      <!-- Live Lobby & Friends List -->
       <div class="bg-retrocard p-6 rounded-lg border border-slate-700/50 shadow-xl">
         <h2 class="text-lg font-bold text-white mb-4 flex items-center">
-          <span>👥 Live-Lobby & Freundesliste (WireGuard Tunnel)</span>
+          <span>👥 Aktive Tunnel-Peers</span>
           <span class="ml-auto text-xs font-mono bg-slate-800 text-retrogreen px-2 py-1 rounded" id="peer-count">0 Online</span>
         </h2>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3" id="peer-list">
           <div class="col-span-full p-4 rounded bg-slate-800/40 border border-dashed border-slate-700 text-center text-sm text-slate-500">
-            Keine Mitspieler im virtuellen Tunnel aktiv. Starte eine mDNS-Suche oder eröffne eine Steam SDR Lobby!
+            Keine Mitspieler im Tunnel aktiv. Lade ein Spiel oder lade Steam-Freunde ein!
           </div>
         </div>
       </div>
 
-      <!-- Interactive Lobby Chat & Radio Channel -->
       <div class="bg-retrocard p-6 rounded-lg border border-slate-700/50 shadow-xl flex flex-col">
         <h2 class="text-lg font-bold text-white mb-3 flex items-center">
-          <span>💬 Lobby-Chat & Funkkanal (Steam SDR / mDNS)</span>
+          <span>💬 Lobby-Chat & Funkkanal</span>
           <span class="ml-auto text-xs font-mono bg-slate-800 text-slate-400 px-2 py-1 rounded">Kanal: #retrolan-p2p</span>
         </h2>
-        
-        <div class="bg-retrodark p-4 rounded border border-slate-800 h-44 overflow-y-auto space-y-2 mb-3 font-mono text-xs" id="chat-box">
-          <div class="text-slate-500 italic">[SYS] Funkkanal bereit. Eröffne eine Lobby, um mit Mitspielern zu chatten...</div>
+        <div class="bg-retrodark p-4 rounded border border-slate-800 h-40 overflow-y-auto space-y-2 mb-3 font-mono text-xs" id="chat-box">
+          <div class="text-slate-500 italic">[SYS] Funkkanal bereit.</div>
         </div>
-
         <div class="flex space-x-2">
-          <input 
-            type="text" 
-            id="chat-input" 
-            placeholder="Nachricht an die Lobby tippen (z.B. 'Server für FlatOut 2 ist offen!')..." 
-            class="flex-1 bg-slate-800/80 border border-slate-700 rounded px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-retrocyan transition font-mono"
-          />
-          <button 
-            id="btn-send-chat" 
-            class="bg-retrocyan hover:bg-cyan-400 text-retrodark font-bold px-5 py-2 rounded transition text-sm shrink-0 shadow-md">
-            Senden ↵
-          </button>
+          <input type="text" id="chat-input" placeholder="Nachricht an die Lobby tippen..." class="flex-1 bg-slate-800/80 border border-slate-700 rounded px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-retrocyan transition font-mono" />
+          <button id="btn-send-chat" class="bg-retrocyan hover:bg-cyan-400 text-retrodark font-bold px-5 py-2 rounded transition text-sm shrink-0 shadow-md">Senden ↵</button>
         </div>
       </div>
 
     </div>
 
-    <!-- Right Column: Control Panel & Terminal Log -->
     <div class="bg-retrocard p-6 rounded-lg border border-slate-700/50 shadow-xl flex flex-col justify-between">
       <div>
-        <h2 class="text-lg font-bold text-white mb-4">🚀 Tunnel Steuerung</h2>
+        <h2 class="text-lg font-bold text-white mb-4">🚀 Steam Multiplayer Bridge</h2>
         <p class="text-sm text-slate-400 mb-6 leading-relaxed">
-          Wähle ein Spiel aus der Datenbank und starte entweder eine weltweite P2P/Relay-Lobby über Steam oder entdecke Freunde im physischen Keller-LAN per mDNS.
+          RetroLAN verknüpft alte LAN-Spiele ohne Steam-Multiplayer direkt mit deinen Steam-Freunden. Lade ein Spiel und lade deine Freunde ein!
         </p>
 
         <div class="space-y-3">
-          <button id="btn-host" class="w-full bg-retrocyan hover:bg-cyan-400 text-retrodark font-bold py-3 px-4 rounded transition shadow-lg shadow-cyan-500/20 flex items-center justify-center space-x-2">
-            <span>🌐 Steam SDR Lobby Hosten</span>
-          </button>
-          <button id="btn-invite" class="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 px-4 rounded transition shadow-lg shadow-purple-500/20 flex items-center justify-center space-x-2 border border-purple-500">
-            <span>➕ Freunde in Lobby einladen</span>
-          </button>
-          <button id="btn-offline" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 px-4 rounded transition flex items-center justify-center space-x-2 border border-slate-600">
-            <span>🔌 Offline-LAN Beitreten (mDNS)</span>
-          </button>
-          <button id="btn-proton" class="w-full bg-slate-800 hover:bg-slate-700 text-yellow-400 font-mono text-sm py-2 px-4 rounded transition border border-yellow-500/30 flex items-center justify-center space-x-2">
-            <span>📦 CachyOS/GE Proton Installieren</span>
-          </button>
-          <button id="btn-ipx" class="w-full bg-slate-800 hover:bg-slate-700 text-retrogreen font-mono text-sm py-2 px-4 rounded transition border border-slate-700">
-            ⚙️ wsock32.dll Shim Neu Laden
+          <button id="btn-invite" class="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-3.5 px-4 rounded transition shadow-lg shadow-purple-500/20 flex items-center justify-center space-x-2 border border-purple-500 text-base">
+            <span>➕ Steam Freunde Einladen</span>
           </button>
         </div>
       </div>
 
-      <!-- Terminal Output Log -->
       <div class="mt-6 pt-6 border-t border-slate-800">
         <span class="text-xs font-mono text-slate-400 block mb-2">LIVE SYSTEM LOG</span>
-        <div class="bg-retrodark p-3 rounded font-mono text-xs text-slate-300 h-44 overflow-y-auto space-y-1" id="log-box">
-          <div class="text-slate-500">[SYS] RetroLAN-VPN UI initialisiert...</div>
+        <div class="bg-retrodark p-3 rounded font-mono text-xs text-slate-300 h-48 overflow-y-auto space-y-1" id="log-box">
+          <div class="text-slate-500">[SYS] RetroLAN Auto-Pilot Engine aktiv...</div>
         </div>
       </div>
     </div>

@@ -43,9 +43,7 @@ interface TunnelTelemetry {
   mtu_bytes: number;
 }
 
-// =====================================================================
-// RETRO WEB AUDIO API SYNTHESIZER (8-Bit DOS / Arcade Sound Effects)
-// =====================================================================
+// 8-Bit Web Audio Synthesizer
 let audioCtx: AudioContext | null = null;
 let lastPeerCount = -1;
 
@@ -97,11 +95,10 @@ function playRetroSound(type: 'join' | 'chat' | 'activate') {
       osc.stop(now + 0.15);
     }
   } catch (e) {
-    // Silently ignore if AudioContext is blocked prior to user gesture
+    // Silent fail
   }
 }
 
-// Log Helper
 function logMessage(msg: string, isError = false) {
   const logBox = document.getElementById('log-box');
   if (!logBox) return;
@@ -113,11 +110,9 @@ function logMessage(msg: string, isError = false) {
   logBox.scrollTop = logBox.scrollHeight;
 }
 
-// Chat Helper
 function appendChatMessage(sender: string, text: string, isSelf = false, isSystem = false) {
   const chatBox = document.getElementById('chat-box');
   if (!chatBox) return;
-  
   const entry = document.createElement('div');
   const time = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   
@@ -137,13 +132,11 @@ function appendChatMessage(sender: string, text: string, isSelf = false, isSyste
   chatBox.scrollTop = chatBox.scrollHeight;
 }
 
-// Update Clock
 setInterval(() => {
   const clock = document.getElementById('clock');
   if (clock) clock.innerText = new Date().toLocaleTimeString('de-DE');
 }, 1000);
 
-// Fetch and render live tunnel telemetry & PMTUD clamp
 async function refreshTelemetry() {
   try {
     const t: TunnelTelemetry = await invoke('get_tunnel_telemetry');
@@ -156,8 +149,6 @@ async function refreshTelemetry() {
     const rxValEl = document.getElementById('telemetry-rx-val');
     const txBarEl = document.getElementById('telemetry-tx-bar');
     const rxBarEl = document.getElementById('telemetry-rx-bar');
-    const dotEl = document.getElementById('telemetry-dot');
-    const pingDotEl = document.getElementById('telemetry-ping-dot');
 
     if (statusEl) statusEl.innerText = t.handshake_status;
     if (hsEl) {
@@ -175,22 +166,11 @@ async function refreshTelemetry() {
 
     if (txBarEl) txBarEl.style.width = `${Math.min(100, (t.tx_kbps / 160) * 100)}%`;
     if (rxBarEl) rxBarEl.style.width = `${Math.min(100, (t.rx_kbps / 180) * 100)}%`;
-
-    if (dotEl && pingDotEl) {
-      if (t.is_encrypted) {
-        dotEl.className = 'relative inline-flex rounded-full h-3 w-3 bg-retrogreen';
-        pingDotEl.className = 'animate-ping absolute inline-flex h-full w-full rounded-full bg-retrogreen opacity-75';
-      } else {
-        dotEl.className = 'relative inline-flex rounded-full h-3 w-3 bg-yellow-500';
-        pingDotEl.className = 'hidden';
-      }
-    }
   } catch (err) {
-    // Silent fail on periodic telemetry
+    // Silent fail
   }
 }
 
-// Fetch and render connected peers & LAN sessions
 async function refreshPeersAndSessions() {
   try {
     const peers: PeerInfo[] = await invoke('get_active_peers');
@@ -201,7 +181,7 @@ async function refreshPeersAndSessions() {
 
     if (lastPeerCount !== -1 && peers.length > lastPeerCount) {
       playRetroSound('join');
-      logMessage('🔊 [Retro-Synth] Neuer Mitspieler im Tunnel aktiv -> 8-Bit Arpeggio abgespielt!');
+      logMessage('🔊 [Retro-Synth] Neuer Mitspieler im Tunnel aktiv!');
     }
     lastPeerCount = peers.length;
 
@@ -263,17 +243,16 @@ async function refreshPeersAndSessions() {
         card.querySelector('button')?.addEventListener('click', () => {
           playRetroSound('activate');
           logMessage(`🚀 Verbinde direkt mit LAN-Server von ${s.host_peer} (${s.host_ip})...`);
-          appendChatMessage('System', `Verbindung zum LAN-Host ${s.host_peer} für ${s.game_name} wird aufgebaut!`, false, true);
+          appendChatMessage('System', `Verbindung zum LAN-Host ${s.host_peer} wird aufgebaut!`, false, true);
         });
         sessionListEl.appendChild(card);
       });
     }
   } catch (err) {
-    // Silent fail on background polling
+    // Silent fail
   }
 }
 
-// Handle sending chat messages
 async function handleSendChat() {
   const inputEl = document.getElementById('chat-input') as HTMLInputElement;
   if (!inputEl || !inputEl.value.trim()) return;
@@ -285,10 +264,7 @@ async function handleSendChat() {
   appendChatMessage('Du (RetroLAN-Host)', text, true);
 
   try {
-    const res: string = await invoke('send_lobby_chat_cmd', { 
-      sender: 'Du (RetroLAN-Host)', 
-      message: text 
-    });
+    const res: string = await invoke('send_lobby_chat_cmd', { sender: 'Du (RetroLAN-Host)', message: text });
     logMessage(`💬 ${res}`);
 
     const peers: PeerInfo[] = await invoke('get_active_peers');
@@ -297,8 +273,7 @@ async function handleSendChat() {
         const replies = [
           "Bin im Tunnel! Lass uns FlatOut 2 starten 🏎️💨",
           "Ping ist perfekt (24ms). IPX-Shim läuft!",
-          "Verbindung steht über Steam Relay Server, absolut lagfrei!",
-          "Hab die Lobby gefunden, bin bereit!"
+          "Verbindung steht über Steam Relay Server, absolut lagfrei!"
         ];
         const randomReply = replies[Math.floor(Math.random() * replies.length)];
         appendChatMessage('Gordon (Steam-Relay)', randomReply, false);
@@ -309,11 +284,8 @@ async function handleSendChat() {
   }
 }
 
-// Initialize Dashboard
 async function initDashboard() {
   try {
-    logMessage('Frage Hardware- & Netzwerk-Status von Rust-Kern ab...');
-    
     const status: SystemStatus = await invoke('get_system_status');
     
     const avxEl = document.getElementById('status-avx');
@@ -346,24 +318,23 @@ async function initDashboard() {
       gameListEl.innerHTML = '';
       games.forEach((game) => {
         const card = document.createElement('div');
-        card.className = 'p-3 rounded bg-slate-800/60 border border-slate-700 hover:border-retrocyan transition flex justify-between items-start cursor-pointer';
+        card.className = 'p-3 rounded bg-slate-800/60 border border-slate-700 hover:border-retrocyan transition flex justify-between items-center cursor-pointer';
         card.innerHTML = `
           <div>
             <div class="font-bold text-white text-sm flex items-center space-x-2">
               <span>${game.name}</span>
               <span class="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-slate-700 text-slate-300">${game.protocol}</span>
             </div>
-            <div class="text-xs text-slate-400 mt-1">${game.notes || 'Keine Notizen verfügbar.'}</div>
-            <div class="text-[11px] font-mono text-retrogreen mt-1.5">✨ Empfohlen: ${game.recommended_proton || 'Standard Proton'}</div>
+            <div class="text-xs text-slate-400 mt-0.5">${game.notes || 'Keine Notizen verfügbar.'}</div>
           </div>
-          <button class="bg-slate-700 hover:bg-retrocyan hover:text-retrodark text-xs font-bold px-3 py-1.5 rounded transition ml-2 shrink-0">
-            Laden
+          <button class="bg-retrocyan hover:bg-cyan-400 text-retrodark font-bold text-xs px-3.5 py-2 rounded transition shrink-0 shadow">
+            🚀 Spiel & Tunnel Laden
           </button>
         `;
         card.onclick = () => {
           playRetroSound('activate');
-          logMessage(`Spieleprofil ausgewählt: ${game.name} (${game.protocol})`);
-          invoke('apply_profile_cmd', { gameName: game.name });
+          logMessage(`🚀 [Auto-Pilot] Aktiviere Spiel & WireGuard Tunnel für '${game.name}'...`);
+          invoke('auto_launch_game_cmd', { gameName: game.name });
         };
         gameListEl.appendChild(card);
       });
@@ -374,26 +345,11 @@ async function initDashboard() {
     setInterval(refreshPeersAndSessions, 2500);
     setInterval(refreshTelemetry, 1200);
 
-    logMessage('✔ Systemdatenblatt, Spieledatenbank und LAN-Match-Detektor erfolgreich initialisiert.');
+    logMessage('✔ RetroLAN Auto-Pilot Dashboard erfolgreich initialisiert.');
   } catch (err) {
     logMessage(`Fehler beim Laden des Dashboards: ${err}`, true);
   }
 }
-
-// Event Listeners for Control Panel Buttons
-document.getElementById('btn-host')?.addEventListener('click', async () => {
-  playRetroSound('activate');
-  logMessage('Erstelle weltweite Steam SDR P2P-Lobby...');
-  try {
-    const res = await invoke('host_lobby_cmd');
-    logMessage(`✔ ${res}`);
-    appendChatMessage('System', 'Steam SDR Lobby eröffnet! Du kannst jetzt Freunde einladen.', false, true);
-    await refreshPeersAndSessions();
-    await refreshTelemetry();
-  } catch (err) {
-    logMessage(`❌ Lobby-Fehler: ${err}`, true);
-  }
-});
 
 document.getElementById('btn-invite')?.addEventListener('click', async () => {
   playRetroSound('activate');
@@ -406,48 +362,9 @@ document.getElementById('btn-invite')?.addEventListener('click', async () => {
   }
 });
 
-document.getElementById('btn-offline')?.addEventListener('click', async () => {
-  playRetroSound('activate');
-  logMessage('Suche im lokalen LAN nach mDNS Beacons (_retrolan._udp.local.)...');
-  try {
-    const res = await invoke('start_mdns_cmd');
-    logMessage(`✔ ${res}`);
-    appendChatMessage('System', 'mDNS Offline-LAN Suche aktiv! Telemetry-Monitor aktiviert.', false, true);
-    await refreshPeersAndSessions();
-    await refreshTelemetry();
-  } catch (err) {
-    logMessage(`❌ mDNS-Fehler: ${err}`, true);
-  }
-});
-
-document.getElementById('btn-proton')?.addEventListener('click', async () => {
-  playRetroSound('activate');
-  logMessage('🌐 Prüfe und lade architektur-passendes Proton Release...');
-  try {
-    const res = await invoke('download_proton_cmd');
-    logMessage(`✔ ${res}`);
-    appendChatMessage('System', 'CachyOS/GE-Proton erfolgreich verifiziert und registriert!', false, true);
-  } catch (err) {
-    logMessage(`❌ Proton-Fehler: ${err}`, true);
-  }
-});
-
-document.getElementById('btn-ipx')?.addEventListener('click', async () => {
-  playRetroSound('activate');
-  logMessage('Erneuere wsock32.dll Proxy-Shim im Spielverzeichnis...');
-  try {
-    const res = await invoke('deploy_ipx_cmd');
-    logMessage(`✔ ${res}`);
-  } catch (err) {
-    logMessage(`❌ IPX-Fehler: ${err}`, true);
-  }
-});
-
-// Chat Event Listeners
 document.getElementById('btn-send-chat')?.addEventListener('click', handleSendChat);
 document.getElementById('chat-input')?.addEventListener('keypress', (e) => {
   if (e.key === 'Enter') handleSendChat();
 });
 
-// Run Init
 window.addEventListener('DOMContentLoaded', initDashboard);

@@ -1,8 +1,7 @@
 // =====================================================================
 // RetroLAN VPN - Proton Compatibility & GitHub Release Downloader
 // Detects AVX2/NTSYNC hardware capabilities, enforces strict CPU arch
-// filtering (no ARM64 on x86_64), prioritizes CachyOS v3, resolves
-// games.toml keywords, and checks idempotency before downloading.
+// filtering, resolves games.toml keywords, and auto-installs missing tools.
 // =====================================================================
 
 use std::fs;
@@ -10,13 +9,11 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use anyhow::{Context, Result};
 
-#[allow(dead_code)]
 pub struct ProtonManager {
     compatibility_dirs: Vec<PathBuf>,
     pub installed_tools: Vec<String>,
 }
 
-#[allow(dead_code)]
 impl ProtonManager {
     /// Initializes the Proton Manager, scans hardware diagnostics, and discovers installed tools.
     pub fn new() -> Result<Self> {
@@ -95,54 +92,44 @@ impl ProtonManager {
         }
     }
 
-    /// Verifies if the target tool exists. Enforces CachyOS AVX2 prioritization, resolves games.toml keywords,
-    /// and triggers pre-verified GitHub downloads if missing.
+    /// Automatically ensures optimal Proton is present. Downloads automatically if missing.
     pub async fn ensure_optimal_proton(&mut self, target_tool: &str) -> Result<String> {
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
         let avx2_capable = std::is_x86_feature_detected!("avx2");
         #[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
         let avx2_capable = false;
 
-        // 1. Handle dynamic games.toml keyword shortcuts!
         let resolved_query = match target_tool.to_lowercase().as_str() {
             "proton-cachyos-v3-latest" => {
-                tracing::info!("💡 Auflösung des Keywords '{}' zu CachyOS x86_64_v3 Release...", target_tool);
                 return self.fetch_and_install_github_release("CachyOS/proton-cachyos", true).await;
             }
             "proton-cachyos-latest" => {
-                tracing::info!("💡 Auflösung des Keywords '{}' zu CachyOS Standard Release...", target_tool);
                 return self.fetch_and_install_github_release("CachyOS/proton-cachyos", false).await;
             }
             "proton-ge-latest" => {
-                tracing::info!("💡 Auflösung des Keywords '{}' zu GloriousEggroll GE-Proton Release...", target_tool);
                 return self.fetch_and_install_github_release("GloriousEggroll/proton-ge-custom", false).await;
             }
             _ => target_tool
         };
 
-        // 2. Prioritize CachyOS AVX2 (v3) if hardware supports it and general cachyos is requested
         if (resolved_query.eq_ignore_ascii_case("proton-cachyos") || resolved_query.to_lowercase().contains("cachyos")) && avx2_capable {
             if let Some(existing_v3) = self.installed_tools.iter().find(|t| t.to_lowercase().contains("cachyos") && (t.contains("v3") || t.contains("x86_64_v3"))) {
-                return Ok(format!("✔ AVX2-optimales Proton '{}' ist bereits installiert.", existing_v3));
+                return Ok(format!("✔ AVX2-optimales Proton '{}' ist bereits vorhanden.", existing_v3));
             }
-            tracing::info!("🚀 AVX2 aktiv! Versuche CachyOS v3 Release von GitHub zu laden...");
             if let Ok(res) = self.fetch_and_install_github_release("CachyOS/proton-cachyos", true).await {
                 return Ok(res);
             }
         }
 
-        // 3. Exact local match check
         if self.installed_tools.iter().any(|t| t.eq_ignore_ascii_case(resolved_query)) {
-            return Ok(format!("✔ Vorgeschriebenes Proton '{}' ist bereits installiert.", resolved_query));
+            return Ok(format!("✔ Vorgeschriebenes Proton '{}' ist vorhanden.", resolved_query));
         }
 
-        // 4. Fuzzy local match check
         if let Some(fuzzy) = self.installed_tools.iter().find(|t| t.to_lowercase().contains(&resolved_query.to_lowercase()) || resolved_query.to_lowercase().contains(&t.to_lowercase())) {
-            return Ok(format!("✔ Lokale Alternative '{}' für '{}' wird verwendet.", fuzzy, resolved_query));
+            return Ok(format!("✔ Lokale Alternative '{}' wird verwendet.", fuzzy));
         }
 
-        // 5. Automatic Fallback: Fetch fixed version or secondary GE-Proton from GitHub
-        tracing::warn!("⚠️ Proton '{}' nicht gefunden. Starte intelligenten GitHub-Downloader...", resolved_query);
+        tracing::info!("⚠️ Proton '{}' fehlt. Starte automatische Installation...", resolved_query);
         if resolved_query.to_lowercase().contains("cachyos") {
             self.fetch_and_install_github_release("CachyOS/proton-cachyos", avx2_capable).await
         } else {
@@ -152,8 +139,6 @@ impl ProtonManager {
 
     /// Asynchronously fetches a release from GitHub, ensuring strict CPU architecture verification and idempotency.
     pub async fn fetch_and_install_github_release(&mut self, repo: &str, require_v3: bool) -> Result<String> {
-        tracing::info!("🌐 [Proton-Downloader] Abfrage der GitHub-API für Repo '{}' (v3-Filter: {})...", repo, require_v3);
-
         let target_dir = self.compatibility_dirs.first()
             .cloned()
             .unwrap_or_else(|| PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(".steam/root/compatibilitytools.d"));
@@ -175,59 +160,47 @@ impl ProtonManager {
 
             let json_str = String::from_utf8_lossy(&output.stdout);
             let (url, name, ext) = Self::parse_compatible_release(&json_str, require_v3)
-                .context("❌ Kein kompatibles, architektur-passendes Release in der GitHub-Antwort gefunden!")?;
+                .context("❌ Kein kompatibles Release gefunden.")?;
 
-            // STRICT IDEMPOTENCY CHECK: Do NOT re-download if the tool directory already exists!
             if installed_clone.contains(&name) || target_dir_clone.join(&name).exists() {
-                tracing::info!("⚡ Idempotenz-Check: '{}' existiert bereits in Steam. Download übersprungen!", name);
                 return Ok((name, 0));
             }
 
-            tracing::info!("✔ Kompatibles Release entdeckt: '{}' -> Starte Download...", name);
+            tracing::info!("📥 Lade Proton Tool '{}' herunter...", name);
             let tmp_archive = std::env::temp_dir().join(format!("retrolan_proton_dl.{}", ext));
 
             let dl_status = Command::new("curl")
                 .args(["-L", "-s", "-o", tmp_archive.to_str().unwrap_or("/tmp/dl.tar"), &url])
                 .status()
-                .context("❌ Download des Tarballs via curl fehlgeschlagen.")?;
+                .context("❌ Download fehlgeschlagen.")?;
 
             if !dl_status.success() {
-                anyhow::bail!("❌ curl Download brach mit Fehlercode {:?} ab.", dl_status.code());
+                anyhow::bail!("❌ Download abgebrochen.");
             }
 
             let meta = fs::metadata(&tmp_archive)?;
-            if meta.len() < 10_000_000 {
-                let _ = fs::remove_file(&tmp_archive);
-                anyhow::bail!("❌ Heruntergeladenes Archiv ist zu klein ({} Bytes).", meta.len());
-            }
-
-            tracing::info!("📥 Download abgeschlossen ({} MB). Entpacke mit universalem tar -xf...", meta.len() / 1_048_576);
-
-            // GNU tar automatically detects gzip (.tar.gz), zstd (.tar.zst), and xz (.tar.xz)!
             let tar_status = Command::new("tar")
                 .args(["-xf", tmp_archive.to_str().unwrap_or("/tmp/dl.tar"), "-C", target_dir_clone.to_str().unwrap_or(".")])
                 .status()
-                .context("❌ Entpacken via tar fehlgeschlagen.")?;
+                .context("❌ Entpacken fehlgeschlagen.")?;
 
             let _ = fs::remove_file(&tmp_archive);
 
             if !tar_status.success() {
-                anyhow::bail!("❌ tar Entpacken brach mit Fehler ab.");
+                anyhow::bail!("❌ Entpacken abgebrochen.");
             }
 
             Ok((name, meta.len()))
-        }).await.context("❌ Tokio Task fehlgeschlagen")??;
-
-        if bytes_written > 0 {
-            tracing::info!("✔ Proton '{}' ({} MB) erfolgreich installiert und entpackt!", tool_name, bytes_written / 1_048_576);
-        }
+        }).await.context("❌ Task fehlgeschlagen")??;
 
         self.rescan_tools();
-        Ok(format!("✔ '{}' ist in Steam registriert und aktiv!", tool_name))
+        if bytes_written > 0 {
+            Ok(format!("✔ '{}' installiert und registriert!", tool_name))
+        } else {
+            Ok(format!("✔ '{}' ist bereits aktiv.", tool_name))
+        }
     }
 
-    /// Zero-dependency JSON parser that strictly filters CPU architecture (rejects ARM64 on x86_64)
-    /// and matches CachyOS v3 flags.
     fn parse_compatible_release(json: &str, require_v3: bool) -> Option<(String, String, String)> {
         for line in json.lines() {
             if line.contains("browser_download_url") && (line.contains(".tar.gz") || line.contains(".tar.zst") || line.contains(".tar.xz")) {
@@ -237,21 +210,12 @@ impl ProtonManager {
                         let filename = part.split('/').last().unwrap_or("Proton.tar.gz");
                         let lower = filename.to_lowercase();
 
-                        // STRICT CPU ARCHITECTURE FILTERING
                         #[cfg(target_arch = "x86_64")]
                         if lower.contains("aarch64") || lower.contains("arm64") || lower.contains("armv7") {
-                            tracing::debug!("⏭️ Überspringe ARM64-Archiv auf x86_64 System: {}", filename);
                             continue;
                         }
 
-                        #[cfg(target_arch = "aarch64")]
-                        if !lower.contains("aarch64") && !lower.contains("arm64") {
-                            continue;
-                        }
-
-                        // CACHYOS v3 FILTERING
                         if require_v3 && (!lower.contains("v3") && !lower.contains("x86_64_v3")) {
-                            tracing::debug!("⏭️ Überspringe Non-v3 Archiv (AVX2 verlangt): {}", filename);
                             continue;
                         }
 
