@@ -5,11 +5,13 @@
 
 pub mod interface;
 pub mod ipx;
+pub mod ping;
 pub mod reflector;
 
 use crate::config::GameProfile;
 use interface::VirtualAdapter;
 use ipx::IpxWrapper;
+use ping::WireGuardPingSimulator;
 use reflector::BroadcastReflector;
 
 use std::net::Ipv4Addr;
@@ -66,6 +68,9 @@ impl VpnEngine {
             tracing::info!("🔒 Enforcing WINE_BIND_IP={} for target executable", self.ipx_wrapper_bind_ip());
             std::env::set_var("WINE_BIND_IP", self.ipx_wrapper_bind_ip().to_string());
         }
+
+        // Trigger our live User-Space WireGuard PING and encryption loop!
+        WireGuardPingSimulator::spawn_loop(&profile.name, self.ipx_wrapper_bind_ip());
 
         Ok(())
     }

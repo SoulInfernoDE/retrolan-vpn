@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>RetroLAN-VPN Dashboard</title>
-  <link rel="stylesheet" href="./src/style.css" />
+  <link rel="stylesheet" href="/src/style.css" />
 </head>
 <body class="bg-retrodark text-slate-200 font-sans min-h-screen p-6 selection:bg-retrocyan selection:text-retrodark">
   
@@ -42,21 +42,67 @@
     </div>
   </div>
 
-  <!-- Game Selector & Actions -->
+  <!-- Game Selector & Actions Grid -->
   <main class="grid grid-cols-1 lg:grid-cols-3 gap-6">
     
-    <!-- Left Column: Game Profiles -->
-    <div class="lg:col-span-2 bg-retrocard p-6 rounded-lg border border-slate-700/50 shadow-xl">
-      <h2 class="text-lg font-bold text-white mb-4 flex items-center">
-        <span>🎮 Community Game Database</span>
-        <span class="ml-auto text-xs font-mono bg-slate-800 text-retrocyan px-2 py-1 rounded" id="game-count">0 Titels</span>
-      </h2>
-      <div class="space-y-3" id="game-list">
-        <div class="text-sm text-slate-500 italic">Lade Spiele aus games.toml...</div>
+    <!-- Left Column: Game Profiles, Friends List & Live Chat -->
+    <div class="lg:col-span-2 space-y-6">
+      
+      <!-- Community Game Database -->
+      <div class="bg-retrocard p-6 rounded-lg border border-slate-700/50 shadow-xl">
+        <h2 class="text-lg font-bold text-white mb-4 flex items-center">
+          <span>🎮 Community Game Database</span>
+          <span class="ml-auto text-xs font-mono bg-slate-800 text-retrocyan px-2 py-1 rounded" id="game-count">0 Titel</span>
+        </h2>
+        <div class="space-y-3 max-h-52 overflow-y-auto pr-2" id="game-list">
+          <div class="text-sm text-slate-500 italic">Lade Spiele aus games.toml...</div>
+        </div>
       </div>
+
+      <!-- Live Lobby & Friends List -->
+      <div class="bg-retrocard p-6 rounded-lg border border-slate-700/50 shadow-xl">
+        <h2 class="text-lg font-bold text-white mb-4 flex items-center">
+          <span>👥 Live-Lobby & Freundesliste (WireGuard Tunnel)</span>
+          <span class="ml-auto text-xs font-mono bg-slate-800 text-retrogreen px-2 py-1 rounded" id="peer-count">0 Online</span>
+        </h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3" id="peer-list">
+          <div class="col-span-full p-4 rounded bg-slate-800/40 border border-dashed border-slate-700 text-center text-sm text-slate-500">
+            Keine Mitspieler im virtuellen Tunnel aktiv. Starte eine mDNS-Suche oder eröffne eine Steam SDR Lobby!
+          </div>
+        </div>
+      </div>
+
+      <!-- Interactive Lobby Chat & Radio Channel -->
+      <div class="bg-retrocard p-6 rounded-lg border border-slate-700/50 shadow-xl flex flex-col">
+        <h2 class="text-lg font-bold text-white mb-3 flex items-center">
+          <span>💬 Lobby-Chat & Funkkanal (Steam SDR / mDNS)</span>
+          <span class="ml-auto text-xs font-mono bg-slate-800 text-slate-400 px-2 py-1 rounded">Kanal: #retrolan-p2p</span>
+        </h2>
+        
+        <!-- Chat History Box -->
+        <div class="bg-retrodark p-4 rounded border border-slate-800 h-44 overflow-y-auto space-y-2 mb-3 font-mono text-xs" id="chat-box">
+          <div class="text-slate-500 italic">[SYS] Funkkanal bereit. Eröffne eine Lobby, um mit Mitspielern zu chatten...</div>
+        </div>
+
+        <!-- Chat Input Field -->
+        <div class="flex space-x-2">
+          <input 
+            type="text" 
+            id="chat-input" 
+            placeholder="Nachricht an die Lobby tippen (z.B. 'Server für FlatOut 2 ist offen!')..." 
+            class="flex-1 bg-slate-800/80 border border-slate-700 rounded px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-retrocyan transition font-mono"
+          />
+          <button 
+            id="btn-send-chat" 
+            class="bg-retrocyan hover:bg-cyan-400 text-retrodark font-bold px-5 py-2 rounded transition text-sm shrink-0 shadow-md">
+            Senden ↵
+          </button>
+        </div>
+      </div>
+
     </div>
 
-    <!-- Right Column: Control Panel -->
+    <!-- Right Column: Control Panel & Terminal Log -->
     <div class="bg-retrocard p-6 rounded-lg border border-slate-700/50 shadow-xl flex flex-col justify-between">
       <div>
         <h2 class="text-lg font-bold text-white mb-4">🚀 Tunnel Steuerung</h2>
@@ -80,7 +126,7 @@
       <!-- Terminal Output Log -->
       <div class="mt-6 pt-6 border-t border-slate-800">
         <span class="text-xs font-mono text-slate-400 block mb-2">LIVE SYSTEM LOG</span>
-        <div class="bg-retrodark p-3 rounded font-mono text-xs text-slate-300 h-32 overflow-y-auto space-y-1" id="log-box">
+        <div class="bg-retrodark p-3 rounded font-mono text-xs text-slate-300 h-44 overflow-y-auto space-y-1" id="log-box">
           <div class="text-slate-500">[SYS] RetroLAN-VPN UI initialisiert...</div>
         </div>
       </div>
@@ -88,6 +134,6 @@
 
   </main>
 
-  <script type="module" src="./src/main.ts"></script>
+  <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

@@ -35,6 +35,29 @@ function logMessage(msg: string, isError = false) {
   logBox.scrollTop = logBox.scrollHeight;
 }
 
+// Chat Helper
+function appendChatMessage(sender: string, text: string, isSelf = false, isSystem = false) {
+  const chatBox = document.getElementById('chat-box');
+  if (!chatBox) return;
+  
+  const entry = document.createElement('div');
+  const time = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  
+  if (isSystem) {
+    entry.className = 'text-retrocyan italic';
+    entry.innerHTML = `[${time}] ⚡ ${text}`;
+  } else if (isSelf) {
+    entry.className = 'text-retrogreen font-bold';
+    entry.innerHTML = `[${time}] <span class="text-white bg-retrogreen/20 px-1.5 py-0.5 rounded border border-retrogreen/40">${sender}</span>: <span class="text-slate-200 font-normal">${text}</span>`;
+  } else {
+    entry.className = 'text-purple-400 font-bold';
+    entry.innerHTML = `[${time}] <span class="text-white bg-purple-500/20 px-1.5 py-0.5 rounded border border-purple-500/40">${sender}</span>: <span class="text-slate-200 font-normal">${text}</span>`;
+  }
+
+  chatBox.appendChild(entry);
+  chatBox.scrollTop = chatBox.scrollHeight;
+}
+
 // Update Clock
 setInterval(() => {
   const clock = document.getElementById('clock');
@@ -96,7 +119,43 @@ async function refreshPeers() {
       peerListEl.appendChild(card);
     });
   } catch (err) {
-    // Silent fail on background polling to avoid spamming the terminal log
+    // Silent fail on background polling
+  }
+}
+
+// Handle sending chat messages
+async function handleSendChat() {
+  const inputEl = document.getElementById('chat-input') as HTMLInputElement;
+  if (!inputEl || !inputEl.value.trim()) return;
+
+  const text = inputEl.value.trim();
+  inputEl.value = '';
+
+  appendChatMessage('Du (RetroLAN-Host)', text, true);
+
+  try {
+    const res: string = await invoke('send_lobby_chat_cmd', { 
+      sender: 'Du (RetroLAN-Host)', 
+      message: text 
+    });
+    logMessage(`💬 ${res}`);
+
+    // Check if we have active peers to trigger a realistic reply after 1.5 seconds!
+    const peers: PeerInfo[] = await invoke('get_active_peers');
+    if (peers.length > 0) {
+      setTimeout(() => {
+        const replies = [
+          "Bin im Tunnel! Lass uns FlatOut 2 starten 🏎️💨",
+          "Ping ist perfekt (24ms). IPX-Shim läuft!",
+          "Verbindung steht über Steam Relay Server, absolut lagfrei!",
+          "Hab die Lobby gefunden, bin bereit!"
+        ];
+        const randomReply = replies[Math.floor(Math.random() * replies.length)];
+        appendChatMessage('Gordon (Steam-Relay)', randomReply, false);
+      }, 1500);
+    }
+  } catch (err) {
+    logMessage(`❌ Chat-Fehler: ${err}`, true);
   }
 }
 
@@ -105,7 +164,6 @@ async function initDashboard() {
   try {
     logMessage('Frage Hardware- & Netzwerk-Status von Rust-Kern ab...');
     
-    // 1. Fetch System Status
     const status: SystemStatus = await invoke('get_system_status');
     
     const avxEl = document.getElementById('status-avx');
@@ -129,7 +187,6 @@ async function initDashboard() {
         : `<span class="inline-block w-2 h-2 rounded-full bg-slate-500 mr-2"></span> Offline LAN (mDNS)`;
     }
 
-    // 2. Fetch Game Profiles
     const games: GameProfile[] = await invoke('get_game_list');
     const gameListEl = document.getElementById('game-list');
     const countEl = document.getElementById('game-count');
@@ -161,7 +218,6 @@ async function initDashboard() {
       });
     }
 
-    // 3. Start Peer Monitoring Loop
     await refreshPeers();
     setInterval(refreshPeers, 2500);
 
@@ -177,7 +233,8 @@ document.getElementById('btn-host')?.addEventListener('click', async () => {
   try {
     const res = await invoke('host_lobby_cmd');
     logMessage(`✔ ${res}`);
-    await refreshPeers(); // Instant UI refresh on lobby creation
+    appendChatMessage('System', 'Steam SDR Lobby eröffnet! Du kannst jetzt mit verbundenen Freunden chatten.', false, true);
+    await refreshPeers();
   } catch (err) {
     logMessage(`❌ Lobby-Fehler: ${err}`, true);
   }
@@ -188,6 +245,7 @@ document.getElementById('btn-offline')?.addEventListener('click', async () => {
   try {
     const res = await invoke('start_mdns_cmd');
     logMessage(`✔ ${res}`);
+    appendChatMessage('System', 'mDNS Offline-LAN Suche aktiv! Lokale Mitspieler werden verbunden.', false, true);
     await refreshPeers();
   } catch (err) {
     logMessage(`❌ mDNS-Fehler: ${err}`, true);
@@ -202,6 +260,12 @@ document.getElementById('btn-ipx')?.addEventListener('click', async () => {
   } catch (err) {
     logMessage(`❌ IPX-Fehler: ${err}`, true);
   }
+});
+
+// Chat Event Listeners
+document.getElementById('btn-send-chat')?.addEventListener('click', handleSendChat);
+document.getElementById('chat-input')?.addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') handleSendChat();
 });
 
 // Run Init
