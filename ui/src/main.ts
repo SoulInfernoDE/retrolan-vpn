@@ -23,6 +23,15 @@ interface PeerInfo {
   is_online: boolean;
 }
 
+interface LanSessionInfo {
+  game_name: string;
+  host_peer: string;
+  host_ip: string;
+  player_count: string;
+  ping_ms: number;
+  is_joinable: boolean;
+}
+
 interface TunnelTelemetry {
   tx_kbps: number;
   rx_kbps: number;
@@ -31,11 +40,11 @@ interface TunnelTelemetry {
   handshake_status: string;
   last_handshake_secs: number;
   is_encrypted: boolean;
+  mtu_bytes: number;
 }
 
 // =====================================================================
 // RETRO WEB AUDIO API SYNTHESIZER (8-Bit DOS / Arcade Sound Effects)
-// Generates real-time square, sine, and sawtooth waves with zero latency!
 // =====================================================================
 let audioCtx: AudioContext | null = null;
 let lastPeerCount = -1;
@@ -62,37 +71,28 @@ function playRetroSound(type: 'join' | 'chat' | 'activate') {
     gain.connect(ctx.destination);
 
     if (type === 'join') {
-      // 8-Bit Ascending Power-Up Arpeggio (Square Wave: 440Hz -> 659Hz -> 880Hz)
       osc.type = 'square';
       osc.frequency.setValueAtTime(440, now);
       osc.frequency.setValueAtTime(659, now + 0.1);
       osc.frequency.setValueAtTime(880, now + 0.2);
-      
       gain.gain.setValueAtTime(0.12, now);
       gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
-      
       osc.start(now);
       osc.stop(now + 0.35);
     } else if (type === 'chat') {
-      // Cyberpunk Futuristic Sci-Fi Blip (Sine Wave: 987Hz -> 1318Hz)
       osc.type = 'sine';
       osc.frequency.setValueAtTime(987, now);
       osc.frequency.setValueAtTime(1318, now + 0.08);
-      
       gain.gain.setValueAtTime(0.18, now);
       gain.gain.exponentialRampToValueAtTime(0.01, now + 0.18);
-      
       osc.start(now);
       osc.stop(now + 0.18);
     } else if (type === 'activate') {
-      // Retro Tactical Button Sweep (Sawtooth Wave: 300Hz -> 600Hz)
       osc.type = 'sawtooth';
       osc.frequency.setValueAtTime(300, now);
       osc.frequency.exponentialRampToValueAtTime(600, now + 0.15);
-      
       gain.gain.setValueAtTime(0.08, now);
       gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
-      
       osc.start(now);
       osc.stop(now + 0.15);
     }
@@ -130,8 +130,6 @@ function appendChatMessage(sender: string, text: string, isSelf = false, isSyste
   } else {
     entry.className = 'text-purple-400 font-bold';
     entry.innerHTML = `[${time}] <span class="text-white bg-purple-500/20 px-1.5 py-0.5 rounded border border-purple-500/40">${sender}</span>: <span class="text-slate-200 font-normal">${text}</span>`;
-    
-    // TRIGGER AUDIO: Play retro blip when an incoming message from Gordon arrives!
     playRetroSound('chat');
   }
 
@@ -145,7 +143,7 @@ setInterval(() => {
   if (clock) clock.innerText = new Date().toLocaleTimeString('de-DE');
 }, 1000);
 
-// Fetch and render live tunnel telemetry
+// Fetch and render live tunnel telemetry & PMTUD clamp
 async function refreshTelemetry() {
   try {
     const t: TunnelTelemetry = await invoke('get_tunnel_telemetry');
@@ -153,6 +151,7 @@ async function refreshTelemetry() {
     const statusEl = document.getElementById('telemetry-status');
     const hsEl = document.getElementById('telemetry-handshake');
     const totalEl = document.getElementById('telemetry-total');
+    const mtuEl = document.getElementById('telemetry-mtu');
     const txValEl = document.getElementById('telemetry-tx-val');
     const rxValEl = document.getElementById('telemetry-rx-val');
     const txBarEl = document.getElementById('telemetry-tx-bar');
@@ -166,6 +165,10 @@ async function refreshTelemetry() {
       hsEl.className = t.is_encrypted ? 'text-retrogreen font-bold' : 'text-slate-500';
     }
     if (totalEl) totalEl.innerText = `TX: ${t.total_tx_mb.toFixed(2)} MB | RX: ${t.total_rx_mb.toFixed(2)} MB`;
+    if (mtuEl) {
+      mtuEl.innerText = t.is_encrypted ? `${t.mtu_bytes} B (DF)` : '1500 B';
+      mtuEl.className = t.is_encrypted ? 'text-retrogreen font-bold' : 'text-yellow-400 font-bold';
+    }
     
     if (txValEl) txValEl.innerText = `${t.tx_kbps.toFixed(1)} KB/s`;
     if (rxValEl) rxValEl.innerText = `${t.rx_kbps.toFixed(1)} KB/s`;
@@ -187,67 +190,84 @@ async function refreshTelemetry() {
   }
 }
 
-// Fetch and render connected peers
-async function refreshPeers() {
+// Fetch and render connected peers & LAN sessions
+async function refreshPeersAndSessions() {
   try {
     const peers: PeerInfo[] = await invoke('get_active_peers');
     const peerListEl = document.getElementById('peer-list');
     const peerCountEl = document.getElementById('peer-count');
 
-    if (peerCountEl) {
-      peerCountEl.innerText = `${peers.length} Online`;
-    }
+    if (peerCountEl) peerCountEl.innerText = `${peers.length} Online`;
 
-    // TRIGGER AUDIO: Play 8-bit arpeggio if peer count increased since last poll!
     if (lastPeerCount !== -1 && peers.length > lastPeerCount) {
       playRetroSound('join');
       logMessage('🔊 [Retro-Synth] Neuer Mitspieler im Tunnel aktiv -> 8-Bit Arpeggio abgespielt!');
     }
     lastPeerCount = peers.length;
 
-    if (!peerListEl) return;
+    if (peerListEl && peers.length > 0) {
+      peerListEl.innerHTML = '';
+      peers.forEach((peer) => {
+        const card = document.createElement('div');
+        card.className = 'p-3 rounded bg-slate-800/60 border border-slate-700/80 flex items-center justify-between shadow-md hover:border-retrogreen transition';
+        const badgeColor = peer.protocol.includes('Steam') ? 'bg-retrocyan/20 text-retrocyan border-retrocyan/30' : 'bg-purple-500/20 text-purple-300 border-purple-500/30';
+        const pingColor = peer.ping_ms < 10 ? 'text-retrogreen' : peer.ping_ms < 50 ? 'text-yellow-400' : 'text-red-400';
 
-    if (peers.length === 0) {
-      peerListEl.innerHTML = `
-        <div class="col-span-full p-4 rounded bg-slate-800/40 border border-dashed border-slate-700 text-center text-sm text-slate-500">
-          Keine Mitspieler im virtuellen Tunnel aktiv. Starte eine mDNS-Suche oder eröffne eine Steam SDR Lobby!
-        </div>
-      `;
-      return;
+        card.innerHTML = `
+          <div class="flex items-center space-x-3">
+            <div class="relative flex h-3 w-3">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-retrogreen opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-3 w-3 bg-retrogreen"></span>
+            </div>
+            <div>
+              <div class="font-bold text-sm text-white flex items-center space-x-2">
+                <span>${peer.name}</span>
+              </div>
+              <div class="text-xs font-mono text-slate-400 mt-0.5">${peer.virtual_ip}</div>
+            </div>
+          </div>
+          <div class="flex flex-col items-end space-y-1">
+            <span class="text-[10px] font-mono uppercase px-2 py-0.5 rounded border ${badgeColor}">${peer.protocol}</span>
+            <span class="text-xs font-mono ${pingColor} font-bold">${peer.ping_ms} ms</span>
+          </div>
+        `;
+        peerListEl.appendChild(card);
+      });
     }
 
-    peerListEl.innerHTML = '';
-    peers.forEach((peer) => {
-      const card = document.createElement('div');
-      card.className = 'p-3 rounded bg-slate-800/60 border border-slate-700/80 flex items-center justify-between shadow-md hover:border-retrogreen transition';
-      
-      const badgeColor = peer.protocol.includes('Steam') ? 'bg-retrocyan/20 text-retrocyan border-retrocyan/30' : 'bg-purple-500/20 text-purple-300 border-purple-500/30';
-      const pingColor = peer.ping_ms < 10 ? 'text-retrogreen' : peer.ping_ms < 50 ? 'text-yellow-400' : 'text-red-400';
+    const sessions: LanSessionInfo[] = await invoke('get_active_lan_sessions');
+    const sessionListEl = document.getElementById('session-list');
+    const sessionCountEl = document.getElementById('session-count');
 
-      card.innerHTML = `
-        <div class="flex items-center space-x-3">
-          <div class="relative flex h-3 w-3">
-            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-retrogreen opacity-75"></span>
-            <span class="relative inline-flex rounded-full h-3 w-3 bg-retrogreen"></span>
-          </div>
+    if (sessionCountEl) sessionCountEl.innerText = `${sessions.length} Server`;
+    if (sessionListEl && sessions.length > 0) {
+      sessionListEl.innerHTML = '';
+      sessions.forEach((s) => {
+        const card = document.createElement('div');
+        card.className = 'p-3 rounded bg-slate-800/80 border border-yellow-500/40 flex items-center justify-between shadow-lg';
+        card.innerHTML = `
           <div>
-            <div class="font-bold text-sm text-white flex items-center space-x-2">
-              <span>${peer.name}</span>
+            <div class="font-bold text-white text-sm flex items-center space-x-2">
+              <span class="text-yellow-400">🔥</span>
+              <span>${s.game_name}</span>
             </div>
-            <div class="text-xs font-mono text-slate-400 mt-0.5">${peer.virtual_ip}</div>
+            <div class="text-xs font-mono text-slate-400 mt-1">Host: <span class="text-retrocyan font-bold">${s.host_peer}</span> (${s.host_ip})</div>
           </div>
-        </div>
-        <div class="flex flex-col items-end space-y-1">
-          <span class="text-[10px] font-mono uppercase px-2 py-0.5 rounded border ${badgeColor}">
-            ${peer.protocol}
-          </span>
-          <span class="text-xs font-mono ${pingColor} font-bold">
-            ${peer.ping_ms} ms
-          </span>
-        </div>
-      `;
-      peerListEl.appendChild(card);
-    });
+          <div class="flex items-center space-x-3">
+            <span class="text-xs font-mono bg-slate-700 px-2 py-1 rounded text-slate-300">${s.player_count}</span>
+            <button class="bg-retrogreen hover:bg-emerald-400 text-retrodark font-bold text-xs px-3 py-1.5 rounded transition shadow">
+              Beitreten 🚀
+            </button>
+          </div>
+        `;
+        card.querySelector('button')?.addEventListener('click', () => {
+          playRetroSound('activate');
+          logMessage(`🚀 Verbinde direkt mit LAN-Server von ${s.host_peer} (${s.host_ip})...`);
+          appendChatMessage('System', `Verbindung zum LAN-Host ${s.host_peer} für ${s.game_name} wird aufgebaut!`, false, true);
+        });
+        sessionListEl.appendChild(card);
+      });
+    }
   } catch (err) {
     // Silent fail on background polling
   }
@@ -349,12 +369,12 @@ async function initDashboard() {
       });
     }
 
-    await refreshPeers();
+    await refreshPeersAndSessions();
     await refreshTelemetry();
-    setInterval(refreshPeers, 2500);
+    setInterval(refreshPeersAndSessions, 2500);
     setInterval(refreshTelemetry, 1200);
 
-    logMessage('✔ Systemdatenblatt, Spieledatenbank und 8-Bit Audio-Synth erfolgreich initialisiert.');
+    logMessage('✔ Systemdatenblatt, Spieledatenbank und LAN-Match-Detektor erfolgreich initialisiert.');
   } catch (err) {
     logMessage(`Fehler beim Laden des Dashboards: ${err}`, true);
   }
@@ -367,11 +387,22 @@ document.getElementById('btn-host')?.addEventListener('click', async () => {
   try {
     const res = await invoke('host_lobby_cmd');
     logMessage(`✔ ${res}`);
-    appendChatMessage('System', 'Steam SDR Lobby eröffnet! WireGuard Telemetry-Monitor aktiviert.', false, true);
-    await refreshPeers();
+    appendChatMessage('System', 'Steam SDR Lobby eröffnet! Du kannst jetzt Freunde einladen.', false, true);
+    await refreshPeersAndSessions();
     await refreshTelemetry();
   } catch (err) {
     logMessage(`❌ Lobby-Fehler: ${err}`, true);
+  }
+});
+
+document.getElementById('btn-invite')?.addEventListener('click', async () => {
+  playRetroSound('activate');
+  logMessage('Öffne natives Steam-Overlay für Freundeseinladungen...');
+  try {
+    const res = await invoke('invite_friends_cmd');
+    logMessage(`✔ ${res}`);
+  } catch (err) {
+    logMessage(`❌ Einladungs-Fehler: ${err}`, true);
   }
 });
 
@@ -382,10 +413,22 @@ document.getElementById('btn-offline')?.addEventListener('click', async () => {
     const res = await invoke('start_mdns_cmd');
     logMessage(`✔ ${res}`);
     appendChatMessage('System', 'mDNS Offline-LAN Suche aktiv! Telemetry-Monitor aktiviert.', false, true);
-    await refreshPeers();
+    await refreshPeersAndSessions();
     await refreshTelemetry();
   } catch (err) {
     logMessage(`❌ mDNS-Fehler: ${err}`, true);
+  }
+});
+
+document.getElementById('btn-proton')?.addEventListener('click', async () => {
+  playRetroSound('activate');
+  logMessage('🌐 Prüfe und lade architektur-passendes Proton Release...');
+  try {
+    const res = await invoke('download_proton_cmd');
+    logMessage(`✔ ${res}`);
+    appendChatMessage('System', 'CachyOS/GE-Proton erfolgreich verifiziert und registriert!', false, true);
+  } catch (err) {
+    logMessage(`❌ Proton-Fehler: ${err}`, true);
   }
 });
 

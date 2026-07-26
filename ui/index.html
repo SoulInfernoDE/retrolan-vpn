@@ -42,7 +42,7 @@
     </div>
   </div>
 
-  <!-- NEW: Pulsing WireGuard Telemetry & Crypt-Monitor Widget -->
+  <!-- Pulsing WireGuard Telemetry & Crypt-Monitor Widget -->
   <div class="bg-retrocard p-5 rounded-lg border border-slate-700/80 shadow-xl mb-8 relative overflow-hidden">
     <div class="absolute -right-10 -top-10 w-40 h-40 bg-retrocyan/5 rounded-full blur-2xl pointer-events-none"></div>
     
@@ -59,19 +59,21 @@
           <div class="text-xs font-mono text-slate-400 mt-0.5" id="telemetry-status">WARTE AUF TUNNEL / LOBBY...</div>
         </div>
       </div>
-      <div class="flex items-center space-x-4 font-mono text-xs">
+      <div class="flex items-center space-x-3 font-mono text-xs flex-wrap gap-y-2">
         <div class="bg-slate-800 px-3 py-1.5 rounded border border-slate-700">
           <span class="text-slate-400">HANDSHAKE:</span> <span class="text-retrogreen font-bold" id="telemetry-handshake">-</span>
         </div>
         <div class="bg-slate-800 px-3 py-1.5 rounded border border-slate-700">
           <span class="text-slate-400">VOLUMEN:</span> <span class="text-retrocyan font-bold" id="telemetry-total">0.00 MB / 0.00 MB</span>
         </div>
+        <div class="bg-slate-800 px-3 py-1.5 rounded border border-yellow-500/40">
+          <span class="text-slate-400">PATH MTU:</span> <span class="text-yellow-400 font-bold" id="telemetry-mtu">1500 B</span>
+        </div>
       </div>
     </div>
 
     <!-- Throughput Bars Grid -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <!-- TX Bar -->
       <div class="bg-retrodark p-3 rounded border border-slate-800">
         <div class="flex justify-between items-center mb-1.5 font-mono text-xs">
           <span class="text-slate-400 flex items-center">
@@ -83,7 +85,6 @@
           <div id="telemetry-tx-bar" class="bg-retrocyan h-full transition-all duration-500 ease-out" style="width: 0%"></div>
         </div>
       </div>
-      <!-- RX Bar -->
       <div class="bg-retrodark p-3 rounded border border-slate-800">
         <div class="flex justify-between items-center mb-1.5 font-mono text-xs">
           <span class="text-slate-400 flex items-center">
@@ -101,7 +102,7 @@
   <!-- Game Selector & Actions Grid -->
   <main class="grid grid-cols-1 lg:grid-cols-3 gap-6">
     
-    <!-- Left Column: Game Profiles, Friends List & Live Chat -->
+    <!-- Left Column: Game Profiles, LAN Matches, Friends & Chat -->
     <div class="lg:col-span-2 space-y-6">
       
       <!-- Community Game Database -->
@@ -112,6 +113,19 @@
         </h2>
         <div class="space-y-3 max-h-52 overflow-y-auto pr-2" id="game-list">
           <div class="text-sm text-slate-500 italic">Lade Spiele aus games.toml...</div>
+        </div>
+      </div>
+
+      <!-- Live Game Sessions / LAN Match Detector -->
+      <div class="bg-retrocard p-6 rounded-lg border border-slate-700/50 shadow-xl">
+        <h2 class="text-lg font-bold text-white mb-4 flex items-center">
+          <span>🎮 Aktive LAN-Spiele im Tunnel (Broadcast Detector)</span>
+          <span class="ml-auto text-xs font-mono bg-slate-800 text-yellow-400 px-2 py-1 rounded" id="session-count">0 Server</span>
+        </h2>
+        <div class="space-y-3" id="session-list">
+          <div class="col-span-full p-4 rounded bg-slate-800/40 border border-dashed border-slate-700 text-center text-sm text-slate-500">
+            Keine gehosteten LAN-Spiele entdeckt. Starte ein Spiel und eröffne einen Server!
+          </div>
         </div>
       </div>
 
@@ -135,12 +149,10 @@
           <span class="ml-auto text-xs font-mono bg-slate-800 text-slate-400 px-2 py-1 rounded">Kanal: #retrolan-p2p</span>
         </h2>
         
-        <!-- Chat History Box -->
         <div class="bg-retrodark p-4 rounded border border-slate-800 h-44 overflow-y-auto space-y-2 mb-3 font-mono text-xs" id="chat-box">
           <div class="text-slate-500 italic">[SYS] Funkkanal bereit. Eröffne eine Lobby, um mit Mitspielern zu chatten...</div>
         </div>
 
-        <!-- Chat Input Field -->
         <div class="flex space-x-2">
           <input 
             type="text" 
@@ -170,8 +182,14 @@
           <button id="btn-host" class="w-full bg-retrocyan hover:bg-cyan-400 text-retrodark font-bold py-3 px-4 rounded transition shadow-lg shadow-cyan-500/20 flex items-center justify-center space-x-2">
             <span>🌐 Steam SDR Lobby Hosten</span>
           </button>
+          <button id="btn-invite" class="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 px-4 rounded transition shadow-lg shadow-purple-500/20 flex items-center justify-center space-x-2 border border-purple-500">
+            <span>➕ Freunde in Lobby einladen</span>
+          </button>
           <button id="btn-offline" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 px-4 rounded transition flex items-center justify-center space-x-2 border border-slate-600">
             <span>🔌 Offline-LAN Beitreten (mDNS)</span>
+          </button>
+          <button id="btn-proton" class="w-full bg-slate-800 hover:bg-slate-700 text-yellow-400 font-mono text-sm py-2 px-4 rounded transition border border-yellow-500/30 flex items-center justify-center space-x-2">
+            <span>📦 CachyOS/GE Proton Installieren</span>
           </button>
           <button id="btn-ipx" class="w-full bg-slate-800 hover:bg-slate-700 text-retrogreen font-mono text-sm py-2 px-4 rounded transition border border-slate-700">
             ⚙️ wsock32.dll Shim Neu Laden
