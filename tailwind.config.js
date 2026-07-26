@@ -3,7 +3,13 @@ export default {
   content: [
     "./ui/**/*.html",
     "./ui/**/*.ts",
+    "./src/**/*.html",
+    "./src/**/*.ts",
+    "*.html",
+    "**/*.html",
+    "**/*.ts"
   ],
+  darkMode: 'class',
   theme: {
     extend: {
       colors: {
