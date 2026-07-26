@@ -5,6 +5,8 @@
 // direct IPv6/IPv4 P2P connectivity fails due to CGNAT or DS-Lite.
 // =====================================================================
 
+pub mod locator;
+
 use std::sync::Arc;
 use steamworks::{Client, LobbyId, LobbyType};
 use tokio::sync::Mutex;
@@ -43,7 +45,6 @@ impl SteamEngine {
         let client = Arc::new(client);
         let cb_client = Arc::clone(&client);
 
-        // Spawn a dedicated background thread to run Steamworks SDK callbacks
         std::thread::spawn(move || {
             loop {
                 cb_client.run_callbacks();
@@ -59,14 +60,11 @@ impl SteamEngine {
     }
 
     /// Asynchronously creates a Steam signaling lobby for peer discovery.
-    /// By scoping the Matchmaking handle tightly, we ensure it is dropped before
-    /// any asynchronous await points, satisfying Rust's Send trait constraints.
     pub async fn create_signaling_lobby(&self, max_members: u32) -> Result<LobbyId> {
         tracing::info!("Creating Steam signaling lobby for {} players...", max_members);
 
         let (tx, rx) = tokio::sync::oneshot::channel();
 
-        // Scope the non-Send Matchmaking struct tightly so it is dropped immediately
         {
             let matchmaking = self.client.matchmaking();
             matchmaking.create_lobby(LobbyType::FriendsOnly, max_members, move |result| {

@@ -15,7 +15,7 @@ use config::{GameDatabase, GameProfile};
 use discovery::MdnsDiscoveryEngine;
 use network::VpnEngine;
 use proton::ProtonManager;
-use steam::{SteamEngine, RETROLAN_DEV_APP_ID};
+use steam::{locator::SteamGameLocator, SteamEngine, RETROLAN_DEV_APP_ID};
 
 use std::path::Path;
 use std::sync::Arc;
@@ -182,7 +182,21 @@ async fn apply_profile_cmd(game_name: String, state: State<'_, AppState>) -> Res
         .find(|g| g.name.eq_ignore_ascii_case(&game_name))
         .ok_or_else(|| format!("❌ Spiel '{}' nicht in der Datenbank gefunden!", game_name))?;
 
-    state.vpn_engine.apply_game_profile(profile, Path::new(".")).await
+    // Dynamically locate the true physical installation folder on Linux/Windows SSDs!
+    let target_dir = if let Some(app_id) = profile.steam_appid {
+        if let Some(real_path) = SteamGameLocator::find_game_dir(app_id) {
+            tracing::info!("🎯 [Profile-Deploy] Verlege IPX/WINE-Shims in echten Ordner: {:?}", real_path);
+            real_path
+        } else {
+            tracing::warn!("⚠️ [Profile-Deploy] Steam AppID {} nicht gefunden. Weiche auf lokales Verzeichnis '.' aus.", app_id);
+            std::path::PathBuf::from(".")
+        }
+    } else {
+        tracing::info!("ℹ️ [Profile-Deploy] Non-Steam Retro Spiel. Nutze lokales Verzeichnis '.'.");
+        std::path::PathBuf::from(".")
+    };
+
+    state.vpn_engine.apply_game_profile(profile, &target_dir).await
         .map_err(|e| format!("❌ Netzwerk-Fehler: {}", e))?;
 
     if let Some(ref recommended) = profile.recommended_proton {
