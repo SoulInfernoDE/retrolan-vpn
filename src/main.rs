@@ -182,17 +182,12 @@ async fn apply_profile_cmd(game_name: String, state: State<'_, AppState>) -> Res
         .find(|g| g.name.eq_ignore_ascii_case(&game_name))
         .ok_or_else(|| format!("❌ Spiel '{}' nicht in der Datenbank gefunden!", game_name))?;
 
-    // Dynamically locate the true physical installation folder on Linux/Windows SSDs!
-    let target_dir = if let Some(app_id) = profile.steam_appid {
-        if let Some(real_path) = SteamGameLocator::find_game_dir(app_id) {
-            tracing::info!("🎯 [Profile-Deploy] Verlege IPX/WINE-Shims in echten Ordner: {:?}", real_path);
-            real_path
-        } else {
-            tracing::warn!("⚠️ [Profile-Deploy] Steam AppID {} nicht gefunden. Weiche auf lokales Verzeichnis '.' aus.", app_id);
-            std::path::PathBuf::from(".")
-        }
+    // Execute our 3-Stage Smart Locator using both Steam AppID and Game Name!
+    let target_dir = if let Some(real_path) = SteamGameLocator::find_game_dir(profile.steam_appid, &profile.name) {
+        tracing::info!("🎯 [Profile-Deploy] Verlege IPX/WINE-Shims in entdeckten Ordner: {:?}", real_path);
+        real_path
     } else {
-        tracing::info!("ℹ️ [Profile-Deploy] Non-Steam Retro Spiel. Nutze lokales Verzeichnis '.'.");
+        tracing::warn!("⚠️ [Profile-Deploy] '{}' konnte nicht auf der SSD lokalisiert werden. Nutze lokales Verzeichnis '.'.", profile.name);
         std::path::PathBuf::from(".")
     };
 
