@@ -23,6 +23,16 @@ interface PeerInfo {
   is_online: boolean;
 }
 
+interface TunnelTelemetry {
+  tx_kbps: number;
+  rx_kbps: number;
+  total_tx_mb: number;
+  total_rx_mb: number;
+  handshake_status: string;
+  last_handshake_secs: number;
+  is_encrypted: boolean;
+}
+
 // Log Helper
 function logMessage(msg: string, isError = false) {
   const logBox = document.getElementById('log-box');
@@ -63,6 +73,49 @@ setInterval(() => {
   const clock = document.getElementById('clock');
   if (clock) clock.innerText = new Date().toLocaleTimeString('de-DE');
 }, 1000);
+
+// Fetch and render live tunnel telemetry
+async function refreshTelemetry() {
+  try {
+    const t: TunnelTelemetry = await invoke('get_tunnel_telemetry');
+    
+    const statusEl = document.getElementById('telemetry-status');
+    const hsEl = document.getElementById('telemetry-handshake');
+    const totalEl = document.getElementById('telemetry-total');
+    const txValEl = document.getElementById('telemetry-tx-val');
+    const rxValEl = document.getElementById('telemetry-rx-val');
+    const txBarEl = document.getElementById('telemetry-tx-bar');
+    const rxBarEl = document.getElementById('telemetry-rx-bar');
+    const dotEl = document.getElementById('telemetry-dot');
+    const pingDotEl = document.getElementById('telemetry-ping-dot');
+
+    if (statusEl) statusEl.innerText = t.handshake_status;
+    if (hsEl) {
+      hsEl.innerText = t.is_encrypted ? `vor ${t.last_handshake_secs} s` : '-';
+      hsEl.className = t.is_encrypted ? 'text-retrogreen font-bold' : 'text-slate-500';
+    }
+    if (totalEl) totalEl.innerText = `TX: ${t.total_tx_mb.toFixed(2)} MB | RX: ${t.total_rx_mb.toFixed(2)} MB`;
+    
+    if (txValEl) txValEl.innerText = `${t.tx_kbps.toFixed(1)} KB/s`;
+    if (rxValEl) rxValEl.innerText = `${t.rx_kbps.toFixed(1)} KB/s`;
+
+    // Map KB/s to progress bar width (max capped at ~200 KB/s for visual impact)
+    if (txBarEl) txBarEl.style.width = `${Math.min(100, (t.tx_kbps / 160) * 100)}%`;
+    if (rxBarEl) rxBarEl.style.width = `${Math.min(100, (t.rx_kbps / 180) * 100)}%`;
+
+    if (dotEl && pingDotEl) {
+      if (t.is_encrypted) {
+        dotEl.className = 'relative inline-flex rounded-full h-3 w-3 bg-retrogreen';
+        pingDotEl.className = 'animate-ping absolute inline-flex h-full w-full rounded-full bg-retrogreen opacity-75';
+      } else {
+        dotEl.className = 'relative inline-flex rounded-full h-3 w-3 bg-yellow-500';
+        pingDotEl.className = 'hidden';
+      }
+    }
+  } catch (err) {
+    // Silent fail on periodic telemetry
+  }
+}
 
 // Fetch and render connected peers
 async function refreshPeers() {
@@ -140,7 +193,6 @@ async function handleSendChat() {
     });
     logMessage(`💬 ${res}`);
 
-    // Check if we have active peers to trigger a realistic reply after 1.5 seconds!
     const peers: PeerInfo[] = await invoke('get_active_peers');
     if (peers.length > 0) {
       setTimeout(() => {
@@ -218,10 +270,13 @@ async function initDashboard() {
       });
     }
 
+    // Start Real-Time Monitoring Loops (Telemetry & Peers)
     await refreshPeers();
+    await refreshTelemetry();
     setInterval(refreshPeers, 2500);
+    setInterval(refreshTelemetry, 1200);
 
-    logMessage('✔ Systemdatenblatt und Spieledatenbank erfolgreich geladen.');
+    logMessage('✔ Systemdatenblatt, Spieledatenbank und Telemetry-Loop erfolgreich initialisiert.');
   } catch (err) {
     logMessage(`Fehler beim Laden des Dashboards: ${err}`, true);
   }
@@ -233,8 +288,9 @@ document.getElementById('btn-host')?.addEventListener('click', async () => {
   try {
     const res = await invoke('host_lobby_cmd');
     logMessage(`✔ ${res}`);
-    appendChatMessage('System', 'Steam SDR Lobby eröffnet! Du kannst jetzt mit verbundenen Freunden chatten.', false, true);
+    appendChatMessage('System', 'Steam SDR Lobby eröffnet! WireGuard Telemetry-Monitor aktiviert.', false, true);
     await refreshPeers();
+    await refreshTelemetry();
   } catch (err) {
     logMessage(`❌ Lobby-Fehler: ${err}`, true);
   }
@@ -245,8 +301,9 @@ document.getElementById('btn-offline')?.addEventListener('click', async () => {
   try {
     const res = await invoke('start_mdns_cmd');
     logMessage(`✔ ${res}`);
-    appendChatMessage('System', 'mDNS Offline-LAN Suche aktiv! Lokale Mitspieler werden verbunden.', false, true);
+    appendChatMessage('System', 'mDNS Offline-LAN Suche aktiv! Telemetry-Monitor aktiviert.', false, true);
     await refreshPeers();
+    await refreshTelemetry();
   } catch (err) {
     logMessage(`❌ mDNS-Fehler: ${err}`, true);
   }

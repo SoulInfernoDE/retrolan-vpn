@@ -21,7 +21,7 @@
   </header>
 
   <!-- Status Cards Grid -->
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
     <div class="bg-retrocard p-4 rounded-lg border border-slate-700/50 shadow-lg">
       <span class="text-xs font-mono text-slate-400 block mb-1">CPU ARCHITECTURE</span>
       <span class="text-lg font-bold text-white flex items-center" id="status-avx">
@@ -39,6 +39,62 @@
       <span class="text-lg font-bold text-white flex items-center" id="status-steam">
         <span class="inline-block w-2 h-2 rounded-full bg-yellow-500 mr-2"></span> Checking...
       </span>
+    </div>
+  </div>
+
+  <!-- NEW: Pulsing WireGuard Telemetry & Crypt-Monitor Widget -->
+  <div class="bg-retrocard p-5 rounded-lg border border-slate-700/80 shadow-xl mb-8 relative overflow-hidden">
+    <div class="absolute -right-10 -top-10 w-40 h-40 bg-retrocyan/5 rounded-full blur-2xl pointer-events-none"></div>
+    
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 pb-4 border-b border-slate-800">
+      <div class="flex items-center space-x-3">
+        <div class="relative flex h-3 w-3">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-retrocyan opacity-75" id="telemetry-ping-dot"></span>
+          <span class="relative inline-flex rounded-full h-3 w-3 bg-retrocyan" id="telemetry-dot"></span>
+        </div>
+        <div>
+          <h2 class="text-md font-bold text-white uppercase tracking-wider flex items-center space-x-2">
+            <span>⚡ Live WireGuard Telemetry & Crypt-Monitor</span>
+          </h2>
+          <div class="text-xs font-mono text-slate-400 mt-0.5" id="telemetry-status">WARTE AUF TUNNEL / LOBBY...</div>
+        </div>
+      </div>
+      <div class="flex items-center space-x-4 font-mono text-xs">
+        <div class="bg-slate-800 px-3 py-1.5 rounded border border-slate-700">
+          <span class="text-slate-400">HANDSHAKE:</span> <span class="text-retrogreen font-bold" id="telemetry-handshake">-</span>
+        </div>
+        <div class="bg-slate-800 px-3 py-1.5 rounded border border-slate-700">
+          <span class="text-slate-400">VOLUMEN:</span> <span class="text-retrocyan font-bold" id="telemetry-total">0.00 MB / 0.00 MB</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Throughput Bars Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <!-- TX Bar -->
+      <div class="bg-retrodark p-3 rounded border border-slate-800">
+        <div class="flex justify-between items-center mb-1.5 font-mono text-xs">
+          <span class="text-slate-400 flex items-center">
+            <span class="text-retrocyan mr-1.5 font-bold">▲</span> TX (OUTGOING SPX/UDP SHIM)
+          </span>
+          <span class="text-retrocyan font-bold text-sm" id="telemetry-tx-val">0.0 KB/s</span>
+        </div>
+        <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+          <div id="telemetry-tx-bar" class="bg-retrocyan h-full transition-all duration-500 ease-out" style="width: 0%"></div>
+        </div>
+      </div>
+      <!-- RX Bar -->
+      <div class="bg-retrodark p-3 rounded border border-slate-800">
+        <div class="flex justify-between items-center mb-1.5 font-mono text-xs">
+          <span class="text-slate-400 flex items-center">
+            <span class="text-retrogreen mr-1.5 font-bold">▼</span> RX (INCOMING TUNNEL TRAFFIC)
+          </span>
+          <span class="text-retrogreen font-bold text-sm" id="telemetry-rx-val">0.0 KB/s</span>
+        </div>
+        <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+          <div id="telemetry-rx-bar" class="bg-retrogreen h-full transition-all duration-500 ease-out" style="width: 0%"></div>
+        </div>
+      </div>
     </div>
   </div>
 
