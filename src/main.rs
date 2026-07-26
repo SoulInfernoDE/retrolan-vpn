@@ -252,6 +252,7 @@ async fn invite_friends_cmd(state: State<'_, AppState>) -> Result<String, String
 
 #[tauri::command]
 async fn send_lobby_chat_cmd(sender: String, message: String, state: State<'_, AppState>) -> Result<String, String> {
+    tracing::info!("💬 [Lobby-Chat] <{}>: {}", sender, message);
     if *state.active_lobby.lock().await {
         Ok("✔ Nachricht über Steamworks SDR Tunnel publiziert.".to_string())
     } else {
