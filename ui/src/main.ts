@@ -33,6 +33,74 @@ interface TunnelTelemetry {
   is_encrypted: boolean;
 }
 
+// =====================================================================
+// RETRO WEB AUDIO API SYNTHESIZER (8-Bit DOS / Arcade Sound Effects)
+// Generates real-time square, sine, and sawtooth waves with zero latency!
+// =====================================================================
+let audioCtx: AudioContext | null = null;
+let lastPeerCount = -1;
+
+function getAudioContext(): AudioContext {
+  if (!audioCtx) {
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    audioCtx = new AudioContextClass();
+  }
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+  return audioCtx;
+}
+
+function playRetroSound(type: 'join' | 'chat' | 'activate') {
+  try {
+    const ctx = getAudioContext();
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    if (type === 'join') {
+      // 8-Bit Ascending Power-Up Arpeggio (Square Wave: 440Hz -> 659Hz -> 880Hz)
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(440, now);
+      osc.frequency.setValueAtTime(659, now + 0.1);
+      osc.frequency.setValueAtTime(880, now + 0.2);
+      
+      gain.gain.setValueAtTime(0.12, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+      
+      osc.start(now);
+      osc.stop(now + 0.35);
+    } else if (type === 'chat') {
+      // Cyberpunk Futuristic Sci-Fi Blip (Sine Wave: 987Hz -> 1318Hz)
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(987, now);
+      osc.frequency.setValueAtTime(1318, now + 0.08);
+      
+      gain.gain.setValueAtTime(0.18, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.18);
+      
+      osc.start(now);
+      osc.stop(now + 0.18);
+    } else if (type === 'activate') {
+      // Retro Tactical Button Sweep (Sawtooth Wave: 300Hz -> 600Hz)
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(300, now);
+      osc.frequency.exponentialRampToValueAtTime(600, now + 0.15);
+      
+      gain.gain.setValueAtTime(0.08, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+      
+      osc.start(now);
+      osc.stop(now + 0.15);
+    }
+  } catch (e) {
+    // Silently ignore if AudioContext is blocked prior to user gesture
+  }
+}
+
 // Log Helper
 function logMessage(msg: string, isError = false) {
   const logBox = document.getElementById('log-box');
@@ -62,6 +130,9 @@ function appendChatMessage(sender: string, text: string, isSelf = false, isSyste
   } else {
     entry.className = 'text-purple-400 font-bold';
     entry.innerHTML = `[${time}] <span class="text-white bg-purple-500/20 px-1.5 py-0.5 rounded border border-purple-500/40">${sender}</span>: <span class="text-slate-200 font-normal">${text}</span>`;
+    
+    // TRIGGER AUDIO: Play retro blip when an incoming message from Gordon arrives!
+    playRetroSound('chat');
   }
 
   chatBox.appendChild(entry);
@@ -99,7 +170,6 @@ async function refreshTelemetry() {
     if (txValEl) txValEl.innerText = `${t.tx_kbps.toFixed(1)} KB/s`;
     if (rxValEl) rxValEl.innerText = `${t.rx_kbps.toFixed(1)} KB/s`;
 
-    // Map KB/s to progress bar width (max capped at ~200 KB/s for visual impact)
     if (txBarEl) txBarEl.style.width = `${Math.min(100, (t.tx_kbps / 160) * 100)}%`;
     if (rxBarEl) rxBarEl.style.width = `${Math.min(100, (t.rx_kbps / 180) * 100)}%`;
 
@@ -127,6 +197,13 @@ async function refreshPeers() {
     if (peerCountEl) {
       peerCountEl.innerText = `${peers.length} Online`;
     }
+
+    // TRIGGER AUDIO: Play 8-bit arpeggio if peer count increased since last poll!
+    if (lastPeerCount !== -1 && peers.length > lastPeerCount) {
+      playRetroSound('join');
+      logMessage('🔊 [Retro-Synth] Neuer Mitspieler im Tunnel aktiv -> 8-Bit Arpeggio abgespielt!');
+    }
+    lastPeerCount = peers.length;
 
     if (!peerListEl) return;
 
@@ -184,6 +261,7 @@ async function handleSendChat() {
   const text = inputEl.value.trim();
   inputEl.value = '';
 
+  playRetroSound('activate');
   appendChatMessage('Du (RetroLAN-Host)', text, true);
 
   try {
@@ -263,6 +341,7 @@ async function initDashboard() {
           </button>
         `;
         card.onclick = () => {
+          playRetroSound('activate');
           logMessage(`Spieleprofil ausgewählt: ${game.name} (${game.protocol})`);
           invoke('apply_profile_cmd', { gameName: game.name });
         };
@@ -270,13 +349,12 @@ async function initDashboard() {
       });
     }
 
-    // Start Real-Time Monitoring Loops (Telemetry & Peers)
     await refreshPeers();
     await refreshTelemetry();
     setInterval(refreshPeers, 2500);
     setInterval(refreshTelemetry, 1200);
 
-    logMessage('✔ Systemdatenblatt, Spieledatenbank und Telemetry-Loop erfolgreich initialisiert.');
+    logMessage('✔ Systemdatenblatt, Spieledatenbank und 8-Bit Audio-Synth erfolgreich initialisiert.');
   } catch (err) {
     logMessage(`Fehler beim Laden des Dashboards: ${err}`, true);
   }
@@ -284,6 +362,7 @@ async function initDashboard() {
 
 // Event Listeners for Control Panel Buttons
 document.getElementById('btn-host')?.addEventListener('click', async () => {
+  playRetroSound('activate');
   logMessage('Erstelle weltweite Steam SDR P2P-Lobby...');
   try {
     const res = await invoke('host_lobby_cmd');
@@ -297,6 +376,7 @@ document.getElementById('btn-host')?.addEventListener('click', async () => {
 });
 
 document.getElementById('btn-offline')?.addEventListener('click', async () => {
+  playRetroSound('activate');
   logMessage('Suche im lokalen LAN nach mDNS Beacons (_retrolan._udp.local.)...');
   try {
     const res = await invoke('start_mdns_cmd');
@@ -310,6 +390,7 @@ document.getElementById('btn-offline')?.addEventListener('click', async () => {
 });
 
 document.getElementById('btn-ipx')?.addEventListener('click', async () => {
+  playRetroSound('activate');
   logMessage('Erneuere wsock32.dll Proxy-Shim im Spielverzeichnis...');
   try {
     const res = await invoke('deploy_ipx_cmd');
